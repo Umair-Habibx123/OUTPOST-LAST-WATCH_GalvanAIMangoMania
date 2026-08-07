@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0,
+             maximum-scale=1.0, user-scalable=no"
+  />
+
+  <meta name="theme-color" content="#090c11" />
+
+  <title>Outpost Controller</title>
+
+  <style>
+    :root {
+      --ink: #090c11;
+      --panel: #141922;
+      --line: #343941;
+      --sand: #e9dfcb;
+      --muted: #9e988b;
+      --amber: #e8a13a;
+      --gold: #f5c36b;
+      --danger: #c5543f;
+      --green: #718c4a;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      background: var(--ink);
+      color: var(--sand);
+      font-family: Inter, "Segoe UI", system-ui, sans-serif;
+      touch-action: none;
+      user-select: none;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    #controller-app {
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      background:
+        radial-gradient(
+          circle at 50% 10%,
+          #242830 0,
+          #090c11 60%
+        );
+    }
+
+    .controller-header {
+      padding: 14px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--line);
+      background: rgba(8, 10, 14, 0.92);
+    }
+
+    .controller-brand span,
+    .controller-brand strong {
+      display: block;
+    }
+
+    .controller-brand span {
+      color: var(--amber);
+      font-size: 8px;
+      font-weight: 900;
+      letter-spacing: 2px;
+    }
+
+    .controller-brand strong {
+      margin-top: 3px;
+      font-family: Georgia, serif;
+      font-size: 19px;
+    }
+
+    .connection-pill {
+      padding: 7px 10px;
+      color: var(--muted);
+      border: 1px solid var(--line);
+      font-size: 9px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .connection-pill.online {
+      color: #b9ce93;
+      border-color: rgba(113, 140, 74, 0.8);
+    }
+
+    .controller-screen {
+      flex: 1;
+      min-height: 0;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .join-panel {
+      margin: auto;
+      width: min(400px, 100%);
+      padding: 24px;
+      text-align: center;
+      background: linear-gradient(
+        165deg,
+        rgba(40, 44, 50, 0.98),
+        rgba(17, 21, 28, 0.98)
+      );
+      border: 1px solid var(--line);
+    }
+
+    .join-panel h1 {
+      margin: 6px 0 8px;
+      font-family: Georgia, serif;
+    }
+
+    .join-panel p {
+      margin: 0 0 18px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .controller-input {
+      width: 100%;
+      margin-top: 9px;
+      padding: 14px;
+      color: var(--sand);
+      background: #0b0e13;
+      border: 1px solid var(--line);
+      outline: none;
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    #controller-name {
+      text-transform: none;
+    }
+
+    .join-button {
+      width: 100%;
+      margin-top: 12px;
+      padding: 14px;
+      color: #231708;
+      background: linear-gradient(
+        180deg,
+        var(--gold),
+        var(--amber)
+      );
+      border: 0;
+      box-shadow: 0 5px 0 #8e5c1c;
+      font-weight: 900;
+    }
+
+    .join-error {
+      min-height: 20px;
+      margin-top: 12px;
+      color: #e28a78;
+      font-size: 12px;
+    }
+
+    .waiting-panel {
+      margin: auto;
+      text-align: center;
+    }
+
+    .waiting-panel h2 {
+      font-family: Georgia, serif;
+      font-size: 30px;
+    }
+
+    .waiting-panel p {
+      color: var(--muted);
+    }
+
+    .room-display {
+      margin-top: 15px;
+      color: var(--gold);
+      font-family: Consolas, monospace;
+      font-size: 28px;
+      letter-spacing: 5px;
+    }
+
+    .game-controller {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .controller-stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+    }
+
+    .controller-stat {
+      padding: 9px 5px;
+      text-align: center;
+      background: rgba(255, 255, 255, 0.035);
+      border-top: 1px solid var(--line);
+    }
+
+    .controller-stat span,
+    .controller-stat strong {
+      display: block;
+    }
+
+    .controller-stat span {
+      color: var(--muted);
+      font-size: 7px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .controller-stat strong {
+      margin-top: 4px;
+      color: var(--gold);
+      font-size: 16px;
+    }
+
+    .aim-pad {
+      position: relative;
+      flex: 1;
+      min-height: 220px;
+      overflow: hidden;
+      background:
+        radial-gradient(
+          circle at 50% 50%,
+          rgba(232, 161, 58, 0.09),
+          transparent 50%
+        ),
+        #10141b;
+      border: 1px solid var(--line);
+    }
+
+    .aim-pad::before,
+    .aim-pad::after {
+      content: "";
+      position: absolute;
+      pointer-events: none;
+      opacity: 0.18;
+      background: var(--sand);
+    }
+
+    .aim-pad::before {
+      left: 50%;
+      top: 0;
+      width: 1px;
+      height: 100%;
+    }
+
+    .aim-pad::after {
+      left: 0;
+      top: 50%;
+      width: 100%;
+      height: 1px;
+    }
+
+    .aim-hint {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      font-size: 12px;
+      pointer-events: none;
+    }
+
+    .mobile-reticle {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 34px;
+      height: 34px;
+      transform: translate(-50%, -50%);
+      border: 2px solid var(--gold);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .mobile-reticle::before,
+    .mobile-reticle::after {
+      content: "";
+      position: absolute;
+      background: var(--gold);
+    }
+
+    .mobile-reticle::before {
+      left: 50%;
+      top: -8px;
+      width: 2px;
+      height: 48px;
+      transform: translateX(-50%);
+    }
+
+    .mobile-reticle::after {
+      left: -8px;
+      top: 50%;
+      width: 48px;
+      height: 2px;
+      transform: translateY(-50%);
+    }
+
+    .controller-actions {
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      gap: 10px;
+    }
+
+    .volley-button,
+    .fire-button {
+      min-height: 82px;
+      border: 0;
+      font-weight: 1000;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      touch-action: manipulation;
+    }
+
+    .volley-button {
+      color: var(--sand);
+      background: #171b22;
+      border: 1px solid var(--line);
+    }
+
+    .volley-button:disabled {
+      opacity: 0.45;
+    }
+
+    .fire-button {
+      color: #231708;
+      background: linear-gradient(
+        180deg,
+        var(--gold),
+        var(--amber)
+      );
+      box-shadow: 0 6px 0 #8e5c1c;
+      font-size: 21px;
+    }
+
+    .fire-button:active {
+      transform: translateY(4px);
+      box-shadow: 0 2px 0 #8e5c1c;
+    }
+
+    @media (orientation: landscape) {
+      .controller-screen {
+        padding: 10px;
+      }
+
+      .controller-stats {
+        grid-template-columns: repeat(4, minmax(70px, 1fr));
+      }
+
+      .aim-pad {
+        min-height: 150px;
+      }
+
+      .controller-actions {
+        grid-template-columns: 1fr 2fr;
+      }
+
+      .volley-button,
+      .fire-button {
+        min-height: 60px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="controller-app">
+    <header class="controller-header">
+      <div class="controller-brand">
+        <span>GALVANAI × INNOVISTA</span>
+        <strong>Shared Watch Controller</strong>
+      </div>
+
+      <div id="connection-pill" class="connection-pill">
+        Connecting
+      </div>
+    </header>
+
+    <main class="controller-screen">
+      <section id="join-screen" class="join-panel">
+        <span class="panel-kicker">JOIN AN OUTPOST</span>
+        <h1>Take the second watch</h1>
+
+        <p>
+          Enter the room code shown on the main game screen.
+        </p>
+
+        <input
+          id="controller-room"
+          class="controller-input"
+          maxlength="6"
+          placeholder="ROOM CODE"
+          autocomplete="off"
+        />
+
+        <input
+          id="controller-name"
+          class="controller-input"
+          maxlength="20"
+          placeholder="Your guard name"
+          autocomplete="off"
+        />
+
+        <button id="controller-join" class="join-button">
+          Join Shared Watch
+        </button>
+
+        <div id="join-error" class="join-error"></div>
+      </section>
+
+      <section id="waiting-screen" class="waiting-panel hidden">
+        <span class="panel-kicker">ROOM JOINED</span>
+        <h2>Awaiting the host</h2>
+
+        <p>
+          Keep this screen open. The host will begin the match.
+        </p>
+
+        <div id="joined-room-code" class="room-display">
+          ------
+        </div>
+      </section>
+
+      <section id="game-screen" class="game-controller hidden">
+        <div class="controller-stats">
+          <div class="controller-stat">
+            <span>Integrity</span>
+            <strong id="mobile-integrity">100%</strong>
+          </div>
+
+          <div class="controller-stat">
+            <span>Wave</span>
+            <strong id="mobile-wave">1</strong>
+          </div>
+
+          <div class="controller-stat">
+            <span>Time</span>
+            <strong id="mobile-time">0.0</strong>
+          </div>
+
+          <div class="controller-stat">
+            <span>Score</span>
+            <strong id="mobile-score">0</strong>
+          </div>
+        </div>
+
+        <div id="aim-pad" class="aim-pad">
+          <div class="aim-hint">
+            Drag here to aim
+          </div>
+
+          <div id="mobile-reticle" class="mobile-reticle"></div>
+        </div>
+
+        <div class="controller-actions">
+          <button
+            id="mobile-volley"
+            class="volley-button"
+            disabled
+          >
+            Volley
+          </button>
+
+          <button id="mobile-fire" class="fire-button">
+            Fire
+          </button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="src/controller.js"></script>
+</body>
+</html>

@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="theme-color" content="#090c11" />
+    <title>Outpost: Last Watch</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.responsive.css" />
+  </head>
+  <body>
+    <div id="app">
+      <div id="stage">
+        <canvas id="game"></canvas>
+        <div id="hud" class="hidden">
+          <div class="hud-row hud-top">
+            <div class="hud-block">
+              <span class="hud-label">Wall integrity</span>
+              <div class="bar">
+                <div id="integrity-fill" class="bar-fill"></div>
+              </div>
+              <span id="integrity-text" class="integrity-text">100%</span>
+            </div>
+            <div class="hud-block hud-center">
+              <span id="wave-tag" class="wave-tag">Wave 1</span
+              ><span id="wave-sub" class="wave-sub"></span>
+            </div>
+            <div class="hud-block hud-right">
+              <span class="hud-label">Time held</span
+              ><span id="time-val" class="hud-big">0.0</span
+              ><span class="hud-label score-label"
+                >Score <b id="score-val">0</b></span
+              >
+            </div>
+          </div>
+          <div id="combo-pill" class="combo-pill hidden">
+            <span id="combo-val">x2</span><small>streak</small>
+          </div>
+          <div class="volley-wrap">
+            <button
+              id="volley-btn"
+              class="volley-btn"
+              aria-label="Fire signal volley"
+              disabled
+            >
+              <span class="volley-key">Q</span
+              ><span class="volley-copy"
+                ><b>Signal volley</b
+                ><small id="volley-status">0 / 12</small></span
+              ><span id="volley-fill" class="volley-fill"></span>
+            </button>
+          </div>
+          <button id="pause-btn" class="ghost-btn" aria-label="Pause">
+            II
+          </button>
+          <button
+            id="mute-btn"
+            class="ghost-btn mute-btn"
+            aria-label="Toggle sound"
+          >
+            SOUND ON
+          </button>
+        </div>
+
+        <div id="screens">
+          <section id="screen-title" class="screen title-screen">
+            <div class="warden-portrait" aria-hidden="true"></div>
+            <div class="title-layout">
+              <div class="eyebrow">
+                <span></span> A FIVE-MINUTE FRONTIER SURVIVAL <span></span>
+              </div>
+              <h1 class="title">
+                OUTPOST<span class="title-sub">LAST WATCH</span>
+              </h1>
+              <p class="tagline">
+                One tower. Every direction. No second chances.
+              </p>
+              <div class="title-actions">
+                <button id="btn-play" class="primary-btn primary-large">
+                  Take the Watch <span>→</span>
+                </button>
+                <button id="btn-scores" class="secondary-btn">
+                  Watch Roll <span id="title-best">Best —</span>
+                </button>
+              </div>
+              <button id="btn-qr" class="qr-link">
+  <span class="qr-glyph">⌗</span>
+  <span>
+    <b>Create Shared Watch</b>
+    <small>Invite a second player by QR code</small>
+  </span>
+</button>
+              <button id="btn-how" class="briefing-btn">
+                <span class="briefing-icon">?</span
+                ><span
+                  ><b>First night?</b
+                  ><small>Read the 30-second briefing</small></span
+                >
+              </button>
+              <div class="title-footer">
+                <span>GALVANAI × INNOVISTA</span
+                ><span class="live-dot">EVENT BUILD</span>
+              </div>
+            </div>
+          </section>
+
+         <section id="screen-qr" class="screen hidden">
+  <div class="panel qr-panel multiplayer-panel">
+    <span class="panel-kicker">MULTIPLAYER OUTPOST</span>
+  <h2 id="room-screen-title" class="panel-title">
+  Shared Watch
+</h2>
+
+    <div id="room-setup">
+      <p class="panel-copy">
+        Create a room and invite another guard to use their phone
+        as the second controller.
+      </p>
+
+      <div class="mode-picker">
+  <button
+    type="button"
+    class="mode-option selected"
+    data-mode="coop"
+  >
+    <b>Play Together</b>
+    <small>Defend one shared outpost</small>
+  </button>
+
+  <button
+    type="button"
+    class="mode-option"
+    data-mode="versus"
+  >
+    <b>Play Against</b>
+    <small>Compete against the second player</small>
+  </button>
+</div>
+
+      <div class="room-form">
+        <label class="field-label" for="host-name">
+          Your guard name
+        </label>
+
+        <input
+          id="host-name"
+          class="room-input"
+          maxlength="20"
+          placeholder="Warden 1"
+          autocomplete="off"
+        />
+
+        <label class="field-label" for="room-map">
+          Battlefield
+        </label>
+
+        <select id="room-map" class="room-input room-select">
+          <option value="frontier">Dust Frontier</option>
+          <option value="orchard">Burnt Orchard</option>
+        </select>
+
+        <button
+          id="btn-create-room"
+          class="primary-btn room-create-btn"
+        >
+          Create Shared Watch
+        </button>
+      </div>
+    </div>
+
+    <div id="room-lobby" class="hidden">
+      <div class="room-code-wrap">
+        <span class="room-code-label">ROOM CODE</span>
+        <strong id="room-code" class="room-code">------</strong>
+      </div>
+
+      <div id="game-qr" class="game-qr"></div>
+
+      <p class="panel-copy">
+        Player 2 should scan this QR code or open the controller
+        link on their phone.
+      </p>
+
+      <code id="qr-url" class="qr-url"></code>
+
+      <div class="player-lobby">
+        <div class="player-card connected">
+          <span class="player-slot">PLAYER 1</span>
+          <strong id="host-player-name">Warden 1</strong>
+          <small>Host connected</small>
+        </div>
+
+        <div id="player-two-card" class="player-card waiting">
+          <span class="player-slot">PLAYER 2</span>
+          <strong id="controller-player-name">
+            Waiting for another guard
+          </strong>
+          <small id="controller-player-status">
+            Scan the QR code to join
+          </small>
+        </div>
+      </div>
+
+      <div id="room-message" class="room-message">
+        Waiting for Player 2...
+      </div>
+
+      <button
+        id="btn-start-room"
+        class="primary-btn room-start-btn"
+        disabled
+      >
+        Begin Shared Watch
+      </button>
+
+      <button
+        id="btn-cancel-room"
+        class="link-btn danger room-cancel-btn"
+      >
+        Cancel room
+      </button>
+    </div>
+
+    <button
+      id="btn-room-back"
+      class="secondary-btn room-back-btn"
+    >
+      Back to outpost
+    </button>
+  </div>
+</section>
+
+          <section id="screen-how" class="screen hidden">
+            <div class="panel">
+              <span class="panel-kicker">FIELD MANUAL 01</span>
+              <h2 class="panel-title">Survive the night</h2>
+              <div class="how-grid">
+                <div>
+                  <span>01</span><b>Aim & strike</b>
+                  <p>
+                    Click or tap incoming raiders before they breach the wall.
+                  </p>
+                </div>
+                <div>
+                  <span>02</span><b>Guard every side</b>
+                  <p>
+                    Threats converge from multiple directions. Prioritize the
+                    closest.
+                  </p>
+                </div>
+                <div>
+                  <span>03</span><b>Keep the streak</b>
+                  <p>
+                    Rapid clean kills multiply points. A miss breaks your
+                    streak.
+                  </p>
+                </div>
+                <div>
+                  <span>04</span><b>Fire the volley</b>
+                  <p>
+                    At 12 charge, press Q or tap Signal Volley to repel nearby
+                    threats.
+                  </p>
+                </div>
+                <div>
+                  <span>05</span><b>Protect the wall</b>
+                  <p>
+                    Damage carries between waves. Perfect waves make small
+                    repairs.
+                  </p>
+                </div>
+                <div>
+                  <span>06</span><b>Catch supplies</b>
+                  <p>Stop the mango cart for a rare repair and score boost.</p>
+                </div>
+              </div>
+              <button class="primary-btn back-btn" data-back>
+                Ready for the watch
+              </button>
+            </div>
+          </section>
+
+          <section id="screen-scores" class="screen hidden">
+            <div class="panel">
+              <span class="panel-kicker">EVENT LEADERBOARD</span>
+              <h2 class="panel-title">The Watch Roll</h2>
+              <p class="panel-copy">
+                Today’s longest holds. The wall remembers every guard.
+              </p>
+              <ol id="score-list" class="score-list"></ol>
+              <div class="score-actions">
+                <button class="primary-btn back-btn" data-back>Back</button>
+              </div>
+            </div>
+          </section>
+
+          <section id="screen-over" class="screen hidden">
+            <div class="panel over-panel">
+              <span class="panel-kicker">WATCH ENDED</span>
+              <h2 class="panel-title">The wall has fallen</h2>
+              <div class="result-grid">
+                <div>
+                  <span class="res-label">Held for</span
+                  ><span id="res-time" class="res-big">0.0s</span>
+                </div>
+                <div>
+                  <span class="res-label">Waves cleared</span
+                  ><span id="res-waves" class="res-big">0</span>
+                </div>
+                <div>
+                  <span class="res-label">Raiders stopped</span
+                  ><span id="res-kills" class="res-big">0</span>
+                </div>
+                <div>
+                  <span class="res-label">Final score</span
+                  ><span id="res-score" class="res-big accent">0</span>
+                </div>
+              </div>
+              <div id="res-rank" class="rank-callout">
+                Calculating your place on the Watch Roll…
+              </div>
+              <div id="name-entry" class="name-entry">
+                <label for="name-input">Sign the Watch Roll</label>
+                <div class="name-row">
+                  <input
+                    id="name-input"
+                    maxlength="14"
+                    placeholder="Guard name"
+                    autocomplete="off"
+                  /><button id="btn-save-score" class="primary-btn small">
+                    Save
+                  </button>
+                </div>
+              </div>
+              <div id="over-actions" class="over-actions hidden">
+                <button id="btn-retry" class="primary-btn">
+                  Take the Watch Again</button
+                ><button id="btn-menu" class="link-btn">
+                  Return to outpost
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+
+    <script src="/socket.io/socket.io.js"></script>
+
+    <script src="src/responsive.js"></script>
+    <script src="src/config.js"></script>
+    <script src="src/utils.js"></script>
+    <script src="src/assets.js"></script>
+    <script src="src/audio.js"></script>
+    <script src="src/device.js"></script>
+    <script src="src/leaderboard.js"></script>
+    <script src="src/multiplayer.js"></script>
+    <script src="src/entities.js"></script>
+    <script src="src/waves.js"></script>
+    <script src="src/render.js"></script>
+    <script src="src/game.js"></script>
+    <script src="src/arsenal.js"></script>
+    <script src="src/maps.js"></script>
+    <script src="src/settings.js"></script>
+    <script src="src/main.js"></script>
+  </body>
+</html>

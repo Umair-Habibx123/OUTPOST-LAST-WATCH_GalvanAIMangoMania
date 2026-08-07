@@ -1,0 +1,27 @@
+{
+  "name": "outpost-last-watch",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Outpost: Last Watch multiplayer event game",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "dev": "node --watch server.js",
+    "start": "node server.js",
+    "db:setup": "node database/setup.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.0",
+    "compression": "^1.8.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.0.1",
+    "helmet": "^8.1.0",
+    "socket.io": "^4.8.1",
+    "zod": "^4.0.17"
+  }
+}
