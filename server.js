@@ -362,7 +362,36 @@ app.get('/{*splat}', (request, response) => {
 
 configureSockets(io);
 
-async function startServer() {
+// async function startServer() {
+//   try {
+//     const database = await verifyDatabaseConnection();
+
+//     console.log(
+//       `Connected to Neon database: ${database.database_name}`
+//     );
+
+//     await removeExpiredRooms();
+
+//     setInterval(() => {
+//       removeExpiredRooms().catch((error) => {
+//         console.error('Expired room cleanup failed', error);
+//       });
+//     }, 10 * 60 * 1000);
+
+//     httpServer.listen(port, () => {
+//       console.log(
+//         `Outpost: Last Watch running at http://localhost:${port}`
+//       );
+//     });
+//   } catch (error) {
+//     console.error('Server startup failed', error);
+//     process.exit(1);
+//   }
+// }
+
+// startServer();
+
+async function initializeServer() {
   try {
     const database = await verifyDatabaseConnection();
 
@@ -371,22 +400,25 @@ async function startServer() {
     );
 
     await removeExpiredRooms();
-
-    setInterval(() => {
-      removeExpiredRooms().catch((error) => {
-        console.error('Expired room cleanup failed', error);
-      });
-    }, 10 * 60 * 1000);
-
-    httpServer.listen(port, () => {
-      console.log(
-        `Outpost: Last Watch running at http://localhost:${port}`
-      );
-    });
   } catch (error) {
-    console.error('Server startup failed', error);
-    process.exit(1);
+    console.error('Server initialization failed', error);
   }
 }
 
-startServer();
+initializeServer();
+
+/*
+ * Local development
+ */
+if (!process.env.VERCEL) {
+  httpServer.listen(port, () => {
+    console.log(
+      `Outpost: Last Watch running at http://localhost:${port}`
+    );
+  });
+}
+
+/*
+ * Vercel entry point
+ */
+export default httpServer;
