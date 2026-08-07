@@ -5,51 +5,40 @@
 window.OLW = window.OLW || {};
 
 OLW.CONFIG = {
-  // Internal render resolution (game logic space). Canvas scales to fit.
   WIDTH: 960,
-  HEIGHT: 600,
+  HEIGHT: 540,
 
-  // The outpost sits at center.
-  WALL_RADIUS: 124,       // aligned to the illustrated palisade
+  WALL_RADIUS: 112,
   TOWER_RADIUS: 30,
 
-  // Integrity (the health bar that never resets between waves).
   INTEGRITY_MAX: 100,
   INTEGRITY_START: 100,
-  PERFECT_WAVE_REPAIR: 6,  // small — decay is meant to outpace it
+  PERFECT_WAVE_REPAIR: 6,
   MANGO_REPAIR: 14,
 
-  // Aiming / striking
-  AIM_ASSIST_RADIUS: 26,   // click within this of a raider still connects (touch-friendly)
-  STRIKE_COOLDOWN: 0.10,   // seconds between strikes
-  STRIKE_RANGE: 999,       // ranged watchtower — you can hit anywhere on field
+  AIM_ASSIST_RADIUS: 28,
+  STRIKE_COOLDOWN: 0.10,
+  STRIKE_RANGE: 999,
 
-  // Scoring
   SCORE_PER_SECOND: 10,
   SCORE_PER_KILL: 5,
   SCORE_PERFECT_WAVE: 150,
   SCORE_MANGO: 60,
 
-  // Combo / streak: rapid clean kills raise a points multiplier; a miss or a
-  // hit to the wall breaks it.
-  COMBO_WINDOW: 2.2,       // seconds a streak survives without a kill
-  COMBO_STEP: 4,           // kills per +1 to the multiplier
-  COMBO_MAX: 5,            // multiplier ceiling
+  COMBO_WINDOW: 2.2,
+  COMBO_STEP: 4,
+  COMBO_MAX: 5,
 
-  // Signal Volley: charges from kills; when full, a shockwave clears nearby raiders.
-  VOLLEY_CHARGE_MAX: 12,   // kills to fully charge
-  VOLLEY_SAFE_RADIUS: 245, // shockwave kill radius from the tower
+  VOLLEY_CHARGE_MAX: 12,
+  VOLLEY_SAFE_RADIUS: 220,
 
-  // Wave director
-  BREATHER: 2.6,           // seconds of calm between waves
-  RAID_EVERY: 5,           // every Nth wave is a harder raid surge
+  BREATHER: 2.6,
+  RAID_EVERY: 5,
 
-  // Mango supply cart
-  MANGO_FIRST_AT: 2,       // earliest wave a cart can appear
-  MANGO_CHANCE: 0.55,      // per-wave chance once eligible
+  MANGO_FIRST_AT: 2,
+  MANGO_CHANCE: 0.55,
 
-  // Feel
-  SHAKE_DECAY: 5.0,
+  SHAKE_DECAY: 5.0
 };
 
 // Cohesive dusty desert-night palette. No purple, no neon.

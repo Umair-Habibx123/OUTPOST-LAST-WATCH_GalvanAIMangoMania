@@ -313,9 +313,29 @@ $('btn-menu').addEventListener('click', () => {
   showScreen('title');
 });
 
+$('btn-settings-launch')?.addEventListener(
+  'click',
+  () => OLW.Settings?.open?.()
+);
+
+$('btn-skip-score')
+  ?.addEventListener(
+    'click',
+    () => {
+      $('name-entry')
+        .classList.add('hidden');
+
+      $('over-actions')
+        .classList.remove('hidden');
+    }
+  );
+
   async function saveScore() {
     if (!lastResult) return;
-    const name = ($('name-input').value || '').trim() || 'Guard';
+    const name =
+  ($('name-input').value || '')
+    .trim() ||
+  'Anonymous Guard';
     await OLW.Leaderboard.submit({
   name,
   mode: OLW.Multiplayer?.mode || 'solo',
@@ -345,7 +365,17 @@ $('btn-menu').addEventListener('click', () => {
       const li = document.createElement('li');
       li.className = 'score-row' + (i < 3 ? ' top' + (i + 1) : '');
       li.innerHTML =
-        `<span class="rank">${i + 1}</span>` +
+        `<span class="rank">
+  ${
+    i === 0
+      ? '♛'
+      : i === 1
+      ? 'Ⅱ'
+      : i === 2
+      ? 'Ⅲ'
+      : i + 1
+  }
+</span>` +
         `<span class="who">${escapeHtml(e.displayName || e.name || 'Guard')}</span>` +
         `<span class="pts">${e.score}</span>` +
         `<span class="secs">${U.fmtTime(

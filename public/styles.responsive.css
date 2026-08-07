@@ -1,31 +1,101 @@
-/* ===== Outpost — responsive layer (loaded AFTER styles.css to override) =====
-   Goal: the 960x600 board fills the largest box that fits ANY viewport without
-   distortion, edge to edge on phones, centred with letterbox on desktop. */
+/* style.responsive.css */
+/* =========================================================
+   OUTPOST RESPONSIVE VIEWPORT
+   Internal game ratio is now 16:9 — 960 x 540.
+   ========================================================= */
 
-html, body { height: 100%; }
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #05070a;
+}
+
+body {
+  overscroll-behavior: none;
+}
 
 #app {
+  position: fixed;
+  inset: 0;
+
   width: 100vw;
   height: 100vh;
-  height: 100dvh;      /* accounts for mobile browser chrome */
+  height: 100dvh;
+
   padding: 0;
+
+  display: grid;
+  place-items: center;
+
+  overflow: hidden;
+
+  background:
+    radial-gradient(
+      circle at 50% 40%,
+      #1b2028 0,
+      #090c11 55%,
+      #030406 100%
+    );
 }
 
-/* Keep the exact 960:600 ratio; size to the largest box that fits width AND
-   height. width/height are always consistent (height = width / 1.6). */
 #stage {
-  width: min(100vw, calc(100dvh * 1.6)) !important;
-  height: min(100dvh, calc(100vw / 1.6)) !important;
-  aspect-ratio: auto !important;
-  max-width: 100vw;
-  max-height: 100dvh;
+  position: relative;
+
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+
+  max-width: none;
+  max-height: none;
+
+  overflow: hidden;
+
   border-radius: 0;
+  box-shadow: none;
+
+  background: #080b10;
+
+  isolation: isolate;
 }
-@media (max-width: 650px) {
-  /* override the old rule that stretched the canvas (aspect-ratio:auto + 100%) */
-  #stage {
-    width: min(100vw, calc(100dvh * 1.6)) !important;
-    height: min(100dvh, calc(100vw / 1.6)) !important;
+
+/* 16:9 game renderer */
+#game {
+  position: absolute;
+  inset: 0;
+
+  width: 100%;
+  height: 100%;
+
+  display: block;
+
+  touch-action: none;
+  cursor: crosshair;
+}
+
+/*
+ On strange aspect ratios we allow a tiny amount of crop rather
+ than stretching everything.
+*/
+@media (min-aspect-ratio: 2/1) {
+  #game {
+    width: auto;
+    min-width: 100%;
+    height: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}
+
+@media (max-aspect-ratio: 4/3) and (orientation: landscape) {
+  #game {
+    width: 100%;
+    height: auto;
+    min-height: 100%;
+    top: 50%;
+    transform: translateY(-50%);
   }
 }
 
@@ -77,13 +147,11 @@ html, body { height: 100%; }
 /* ---- small-screen tightening for injected UIs ---- */
 @media (max-width: 520px) {
   .ars-shop-panel { padding: 16px; }
-  .ars-bar { bottom: 48px; gap: 4px; }
   .ars-w { padding: 5px 7px; }
   .ars-coins { top: 6px; }
   .map-picker { margin-top: 8px; }
 }
 @media (max-height: 430px) {
   /* short landscape (phones held sideways): pull HUD in tight */
-  .ars-bar { bottom: 40px; }
   .volley-wrap { bottom: 8px; }
 }

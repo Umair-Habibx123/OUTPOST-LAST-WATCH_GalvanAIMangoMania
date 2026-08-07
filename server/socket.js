@@ -146,19 +146,50 @@ export function configureSockets(io) {
       }
     });
 
-    socket.on('room:get', ({ roomCode }, reply) => {
-      const normalized = String(roomCode || '')
-        .trim()
-        .toUpperCase();
+    socket.on(
+  'room:get',
+  async (
+    { roomCode },
+    reply
+  ) => {
+    try {
+      const normalized =
+        String(roomCode || '')
+          .trim()
+          .toUpperCase();
 
-      const room = getRoom(normalized);
+      const room =
+        await getRoom(
+          normalized
+        );
 
       safeReply(reply, {
         ok: Boolean(room),
+
         room,
-        message: room ? undefined : 'Room not found.'
+
+        message:
+          room
+            ? undefined
+            : 'Room not found.'
       });
-    });
+    } catch (error) {
+      console.error(
+        'room:get failed',
+        error
+      );
+
+      safeReply(reply, {
+        ok: false,
+
+        room: null,
+
+        message:
+          'Unable to load the room.'
+      });
+    }
+  }
+);
 
     socket.on('room:start', async ({ roomCode }, reply) => {
       try {

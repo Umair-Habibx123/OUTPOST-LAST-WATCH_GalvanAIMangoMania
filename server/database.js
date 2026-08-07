@@ -1,4 +1,4 @@
-// server/database .js
+// server/database.js
 
 import { neon } from '@neondatabase/serverless';
 

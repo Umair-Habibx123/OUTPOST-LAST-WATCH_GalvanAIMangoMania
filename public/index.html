@@ -1,3 +1,5 @@
+<!-- index.html -->
+
 <!doctype html>
 <html lang="en">
   <head>
@@ -10,6 +12,35 @@
     <title>Outpost: Last Watch</title>
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="styles.responsive.css" />
+    <link
+  rel="icon"
+  href="/favicon.ico"
+  sizes="any"
+/>
+
+<link
+  rel="icon"
+  type="image/png"
+  sizes="32x32"
+  href="/favicon-32.png"
+/>
+
+<link
+  rel="icon"
+  type="image/png"
+  sizes="16x16"
+  href="/favicon-16.png"
+/>
+
+<link
+  rel="apple-touch-icon"
+  href="/apple-touch-icon.png"
+/>
+
+<meta
+  name="theme-color"
+  content="#090c11"
+/>
   </head>
   <body>
     <div id="app">
@@ -67,171 +98,227 @@
 
         <div id="screens">
           <section id="screen-title" class="screen title-screen">
-            <div class="warden-portrait" aria-hidden="true"></div>
-            <div class="title-layout">
-              <div class="eyebrow">
-                <span></span> A FIVE-MINUTE FRONTIER SURVIVAL <span></span>
+            <div class="title-vignette"></div>
+
+            <div class="event-brandbar">
+              <div class="event-brand event-brand-left">
+                <img src="assets/branding/galvan-ai.png" alt="GalvanAI" />
               </div>
-              <h1 class="title">
-                OUTPOST<span class="title-sub">LAST WATCH</span>
-              </h1>
+
+              <div class="event-build-label">GALVAN AI · INNOVISTA</div>
+
+              <div class="event-brand event-brand-right">
+                <img src="assets/branding/innovista.png" alt="InnoVista" />
+              </div>
+            </div>
+
+            <div class="warden-portrait" aria-hidden="true"></div>
+
+            <div class="title-layout modern-title-layout">
+
+              <div class="hero-kicker">GALVANAI PRESENTS</div>
+
+              <div class="game-emblem-wrap">
+                <img
+                  class="game-emblem"
+                  src="assets/branding/game_emblem.png"
+                  alt="Outpost: Last Watch"
+                />
+              </div>
+
               <p class="tagline">
                 One tower. Every direction. No second chances.
               </p>
-              <div class="title-actions">
-                <button id="btn-play" class="primary-btn primary-large">
-                  Take the Watch <span>→</span>
-                </button>
-                <button id="btn-scores" class="secondary-btn">
-                  Watch Roll <span id="title-best">Best —</span>
-                </button>
+
+              <div class="hero-meta">
+                <span>⚔ Survival</span>
+                <span>◉ 1–2 Players</span>
+                <span>⌛ 3–5 Minutes</span>
               </div>
-              <button id="btn-qr" class="qr-link">
-  <span class="qr-glyph">⌗</span>
-  <span>
-    <b>Create Shared Watch</b>
-    <small>Invite a second player by QR code</small>
-  </span>
-</button>
-              <button id="btn-how" class="briefing-btn">
-                <span class="briefing-icon">?</span
-                ><span
-                  ><b>First night?</b
-                  ><small>Read the 30-second briefing</small></span
+
+              <div class="title-actions modern-actions">
+                <button
+                  id="btn-play"
+                  class="primary-btn primary-large hero-play"
                 >
-              </button>
-              <div class="title-footer">
-                <span>GALVANAI × INNOVISTA</span
-                ><span class="live-dot">EVENT BUILD</span>
+                  <span class="hero-play-copy">
+                    <small>SOLO WATCH</small>
+                    Take the Watch
+                  </span>
+
+                  <span class="hero-arrow">→</span>
+                </button>
+
+                <button id="btn-qr" class="menu-action-card multiplayer-card">
+                  <span class="menu-action-icon">◈</span>
+
+                  <span class="menu-action-copy">
+                    <small>2 PLAYERS</small>
+                    <strong>Shared Watch</strong>
+                    <em>Phone controller</em>
+                  </span>
+                </button>
               </div>
+
+              <div class="secondary-actions">
+                <button
+                  id="btn-armory-launch"
+                  class="secondary-tile"
+                  type="button"
+                >
+                  <span>⚒</span>
+                  Armory
+                </button>
+
+                <button id="btn-scores" class="secondary-tile" type="button">
+                  <span>♜</span>
+                  Watch Roll
+                  <small id="title-best">Best —</small>
+                </button>
+
+                <button id="btn-how" class="secondary-tile" type="button">
+                  <span>?</span>
+                  Briefing
+                </button>
+
+                <button
+                  id="btn-settings-launch"
+                  class="secondary-tile"
+                  type="button"
+                >
+                  <span>⚙</span>
+                  Settings
+                </button>
+              </div>
+
+              <div class="hero-tip">
+                <span class="hero-tip-key">TIP</span>
+                Survive longer to unlock weapons, field equipment and upgrades.
+              </div>
+            </div>
+
+            <div class="title-footer modern-footer">
+              <span> <span class="live-dot">  GALVANAI × INNOVISTA </span>
             </div>
           </section>
 
-         <section id="screen-qr" class="screen hidden">
-  <div class="panel qr-panel multiplayer-panel">
-    <span class="panel-kicker">MULTIPLAYER OUTPOST</span>
-  <h2 id="room-screen-title" class="panel-title">
-  Shared Watch
-</h2>
+          <section id="screen-qr" class="screen hidden">
+            <div class="panel qr-panel multiplayer-panel">
+              <span class="panel-kicker">MULTIPLAYER OUTPOST</span>
+              <h2 id="room-screen-title" class="panel-title">Shared Watch</h2>
 
-    <div id="room-setup">
-      <p class="panel-copy">
-        Create a room and invite another guard to use their phone
-        as the second controller.
-      </p>
+              <div id="room-setup">
+                <p class="panel-copy">
+                  Create a room and invite another guard to use their phone as
+                  the second controller.
+                </p>
 
-      <div class="mode-picker">
-  <button
-    type="button"
-    class="mode-option selected"
-    data-mode="coop"
-  >
-    <b>Play Together</b>
-    <small>Defend one shared outpost</small>
-  </button>
+                <div class="mode-picker">
+                  <button
+                    type="button"
+                    class="mode-option selected"
+                    data-mode="coop"
+                  >
+                    <b>Play Together</b>
+                    <small>Defend one shared outpost</small>
+                  </button>
 
-  <button
-    type="button"
-    class="mode-option"
-    data-mode="versus"
-  >
-    <b>Play Against</b>
-    <small>Compete against the second player</small>
-  </button>
-</div>
+                  <button type="button" class="mode-option" data-mode="versus">
+                    <b>Play Against</b>
+                    <small>Compete against the second player</small>
+                  </button>
+                </div>
 
-      <div class="room-form">
-        <label class="field-label" for="host-name">
-          Your guard name
-        </label>
+                <div class="room-form">
+                  <label class="field-label" for="host-name">
+                    Your guard name
+                  </label>
 
-        <input
-          id="host-name"
-          class="room-input"
-          maxlength="20"
-          placeholder="Warden 1"
-          autocomplete="off"
-        />
+                  <input
+                    id="host-name"
+                    class="room-input"
+                    maxlength="20"
+                    placeholder="Warden 1"
+                    autocomplete="off"
+                  />
 
-        <label class="field-label" for="room-map">
-          Battlefield
-        </label>
+                  <label class="field-label" for="room-map">
+                    Battlefield
+                  </label>
 
-        <select id="room-map" class="room-input room-select">
-          <option value="frontier">Dust Frontier</option>
-          <option value="orchard">Burnt Orchard</option>
-        </select>
+                  <select id="room-map" class="room-input room-select">
+                    <option value="frontier">Dust Frontier</option>
+                    <option value="orchard">Burnt Orchard</option>
+                    <option value="frost">Frostwatch Ridge</option>
+                  </select>
 
-        <button
-          id="btn-create-room"
-          class="primary-btn room-create-btn"
-        >
-          Create Shared Watch
-        </button>
-      </div>
-    </div>
+                  <button
+                    id="btn-create-room"
+                    class="primary-btn room-create-btn"
+                  >
+                    Create Shared Watch
+                  </button>
+                </div>
+              </div>
 
-    <div id="room-lobby" class="hidden">
-      <div class="room-code-wrap">
-        <span class="room-code-label">ROOM CODE</span>
-        <strong id="room-code" class="room-code">------</strong>
-      </div>
+              <div id="room-lobby" class="hidden">
+                <div class="room-code-wrap">
+                  <span class="room-code-label">ROOM CODE</span>
+                  <strong id="room-code" class="room-code">------</strong>
+                </div>
 
-      <div id="game-qr" class="game-qr"></div>
+                <div id="game-qr" class="game-qr"></div>
 
-      <p class="panel-copy">
-        Player 2 should scan this QR code or open the controller
-        link on their phone.
-      </p>
+                <p class="panel-copy">
+                  Player 2 should scan this QR code or open the controller link
+                  on their phone.
+                </p>
 
-      <code id="qr-url" class="qr-url"></code>
+                <code id="qr-url" class="qr-url"></code>
 
-      <div class="player-lobby">
-        <div class="player-card connected">
-          <span class="player-slot">PLAYER 1</span>
-          <strong id="host-player-name">Warden 1</strong>
-          <small>Host connected</small>
-        </div>
+                <div class="player-lobby">
+                  <div class="player-card connected">
+                    <span class="player-slot">PLAYER 1</span>
+                    <strong id="host-player-name">Warden 1</strong>
+                    <small>Host connected</small>
+                  </div>
 
-        <div id="player-two-card" class="player-card waiting">
-          <span class="player-slot">PLAYER 2</span>
-          <strong id="controller-player-name">
-            Waiting for another guard
-          </strong>
-          <small id="controller-player-status">
-            Scan the QR code to join
-          </small>
-        </div>
-      </div>
+                  <div id="player-two-card" class="player-card waiting">
+                    <span class="player-slot">PLAYER 2</span>
+                    <strong id="controller-player-name">
+                      Waiting for another guard
+                    </strong>
+                    <small id="controller-player-status">
+                      Scan the QR code to join
+                    </small>
+                  </div>
+                </div>
 
-      <div id="room-message" class="room-message">
-        Waiting for Player 2...
-      </div>
+                <div id="room-message" class="room-message">
+                  Waiting for Player 2...
+                </div>
 
-      <button
-        id="btn-start-room"
-        class="primary-btn room-start-btn"
-        disabled
-      >
-        Begin Shared Watch
-      </button>
+                <button
+                  id="btn-start-room"
+                  class="primary-btn room-start-btn"
+                  disabled
+                >
+                  Begin Shared Watch
+                </button>
 
-      <button
-        id="btn-cancel-room"
-        class="link-btn danger room-cancel-btn"
-      >
-        Cancel room
-      </button>
-    </div>
+                <button
+                  id="btn-cancel-room"
+                  class="link-btn danger room-cancel-btn"
+                >
+                  Cancel room
+                </button>
+              </div>
 
-    <button
-      id="btn-room-back"
-      class="secondary-btn room-back-btn"
-    >
-      Back to outpost
-    </button>
-  </div>
-</section>
+              <button id="btn-room-back" class="secondary-btn room-back-btn">
+                Back to outpost
+              </button>
+            </div>
+          </section>
 
           <section id="screen-how" class="screen hidden">
             <div class="panel">
@@ -322,19 +409,40 @@
               <div id="res-rank" class="rank-callout">
                 Calculating your place on the Watch Roll…
               </div>
-              <div id="name-entry" class="name-entry">
-                <label for="name-input">Sign the Watch Roll</label>
-                <div class="name-row">
-                  <input
-                    id="name-input"
-                    maxlength="14"
-                    placeholder="Guard name"
-                    autocomplete="off"
-                  /><button id="btn-save-score" class="primary-btn small">
-                    Save
-                  </button>
-                </div>
-              </div>
+              <div
+  id="name-entry"
+  class="name-entry"
+>
+  <label for="name-input">
+    Add a guard name
+    <span class="optional-label">
+      Optional
+    </span>
+  </label>
+
+  <div class="name-row">
+    <input
+      id="name-input"
+      maxlength="14"
+      placeholder="Anonymous Guard"
+      autocomplete="off"
+    />
+
+    <button
+      id="btn-save-score"
+      class="primary-btn small"
+    >
+      Save Score
+    </button>
+  </div>
+
+  <button
+    id="btn-skip-score"
+    class="link-btn skip-score-btn"
+  >
+    Continue without saving
+  </button>
+</div>
               <div id="over-actions" class="over-actions hidden">
                 <button id="btn-retry" class="primary-btn">
                   Take the Watch Again</button

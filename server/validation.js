@@ -2,24 +2,33 @@
 
 import { z } from 'zod';
 
-export const createRoomSchema = z.object({
-  mode: z.enum(['coop', 'versus']).default('coop'),
+const mapSchema =
+  z.enum([
+    'frontier',
+    'orchard',
+    'frost'
+  ]);
 
-  mapId: z
-    .string()
-    .trim()
-    .min(1)
-    .max(40)
-    .regex(/^[a-z0-9_-]+$/i)
-    .default('frontier'),
+export const createRoomSchema =
+  z.object({
+    mode:
+      z.enum([
+        'coop',
+        'versus'
+      ])
+      .default('coop'),
 
-  playerName: z
-    .string()
-    .trim()
-    .min(1)
-    .max(20)
-    .default('Warden 1')
-});
+    mapId:
+      mapSchema
+      .default('frontier'),
+
+    playerName:
+      z.string()
+      .trim()
+      .min(1)
+      .max(20)
+      .default('Warden 1')
+  });
 
 export const joinRoomSchema = z.object({
   roomCode: z
@@ -72,11 +81,7 @@ export const leaderboardSubmissionSchema = z.object({
 
   mode: z.enum(['solo', 'coop', 'versus']),
 
-  mapId: z
-    .string()
-    .trim()
-    .min(1)
-    .max(40),
+ mapId: mapSchema,
 
   score: z
     .number()

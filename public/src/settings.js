@@ -145,7 +145,117 @@ OLW.Settings = (function () {
     const s = el('style'); s.id = 'set-css';
     s.textContent = `
 .set-overlay{position:absolute;inset:0;z-index:45;display:grid;place-items:center;padding:clamp(10px,3vmin,28px);background:rgba(6,8,11,.82);backdrop-filter:blur(4px)}
-.set-panel{width:min(480px,96%);max-height:92%;display:flex;flex-direction:column;padding:clamp(18px,3.5vmin,30px);background:linear-gradient(165deg,rgba(40,44,50,.97),rgba(17,21,28,.99));border:1px solid #343941;color:#e9dfcb}
+.set-overlay {
+  position: absolute;
+  inset: 0;
+
+  z-index: 75;
+
+  display: grid;
+  place-items: center;
+
+  padding:
+    clamp(8px,2vmin,22px);
+
+  background:
+    rgba(4,6,9,.87);
+
+  backdrop-filter:
+    blur(9px);
+}
+
+.set-panel {
+  width:
+    min(520px, 96vw);
+
+  max-height:
+    min(690px, 94dvh);
+
+  display: flex;
+  flex-direction: column;
+
+  overflow: hidden;
+
+  padding:
+    clamp(16px,3vmin,28px);
+
+  border:
+    1px solid
+    rgba(255,255,255,.1);
+
+  border-radius: 7px;
+
+  color: #e9dfcb;
+
+  background:
+    linear-gradient(
+      155deg,
+      rgba(34,39,47,.99),
+      rgba(11,14,19,.995)
+    );
+
+  box-shadow:
+    0 30px 90px
+    rgba(0,0,0,.7);
+}
+
+.set-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+
+  overflow-y: auto;
+
+  margin-top: 8px;
+}
+
+@media (max-width: 600px) {
+  .set-overlay {
+    padding: 0;
+  }
+
+  .set-panel {
+    width: 100vw;
+    height: 100dvh;
+    max-height: none;
+
+    border: 0;
+    border-radius: 0;
+
+    padding: 14px;
+  }
+}
+
+@media (
+  max-height: 480px
+)
+and
+(
+  orientation: landscape
+) {
+  .set-overlay {
+    padding: 5px;
+  }
+
+  .set-panel {
+    width:
+      min(660px,98vw);
+
+    height:
+      calc(100dvh - 10px);
+
+    padding: 10px 14px;
+  }
+
+  .set-row {
+    padding: 8px;
+    margin-bottom: 4px;
+  }
+
+  .set-close {
+    margin-top: 6px;
+    padding: 8px;
+  }
+}
 .set-head{flex:none}
 .set-scroll{overflow-y:auto;flex:1 1 auto;min-height:0;margin-top:8px;-webkit-overflow-scrolling:touch}
 .set-close{flex:none}
@@ -180,5 +290,7 @@ OLW.Settings = (function () {
   }
 
   init();
+  S.open = openPanel;
+S.close = closePanel;
   return S;
 })();

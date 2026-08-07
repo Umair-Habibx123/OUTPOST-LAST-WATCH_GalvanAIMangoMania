@@ -20,9 +20,159 @@ window.OLW = window.OLW || {};
       speckle.push({ x: rnd() * C.WIDTH, y: rnd() * C.HEIGHT, r: rnd() * 1.4 + 0.3, a: rnd() * 0.05 + 0.02 });
     }
   })();
+  function drawMapAtmosphere(
+  ctx,
+  time,
+  mapId
+) {
+  ctx.save();
+
+  if (mapId === 'frontier') {
+    /*
+     * Subtle dust.
+     */
+    for (let i = 0; i < 22; i += 1) {
+      const x =
+        (i * 143 +
+          time * (7 + i % 3)) %
+        (C.WIDTH + 40);
+
+      const y =
+        (i * 89 +
+          Math.sin(time + i) * 14) %
+        C.HEIGHT;
+
+      ctx.globalAlpha =
+        .035 + (i % 3) * .01;
+
+      ctx.fillStyle =
+        COL.torchCore;
+
+      ctx.fillRect(
+        x,
+        y,
+        1.4,
+        1.4
+      );
+    }
+  }
+
+  if (mapId === 'orchard') {
+    /*
+     * Moving embers.
+     */
+    for (let i = 0; i < 36; i += 1) {
+      const x =
+        (i * 97 +
+          time * (18 + i % 5)) %
+        C.WIDTH;
+
+      const y =
+        (
+          C.HEIGHT -
+          (
+            i * 71 +
+            time * (11 + i % 4)
+          ) %
+          C.HEIGHT
+        );
+
+      ctx.globalAlpha =
+        .12 + (i % 4) * .035;
+
+      ctx.fillStyle =
+        '#ff8a32';
+
+      ctx.fillRect(
+        x,
+        y,
+        1.5,
+        1.5
+      );
+    }
+  }
+
+  if (mapId === 'frost') {
+    /*
+     * Snow particles.
+     */
+    for (let i = 0; i < 42; i += 1) {
+      const x =
+        (
+          i * 137 +
+          time * (9 + i % 4)
+        ) %
+        C.WIDTH;
+
+      const y =
+        (
+          i * 61 +
+          time * (20 + i % 5)
+        ) %
+        C.HEIGHT;
+
+      ctx.globalAlpha =
+        .10 + (i % 4) * .025;
+
+      ctx.fillStyle =
+        '#d9edff';
+
+      ctx.fillRect(
+        x,
+        y,
+        1.5,
+        1.5
+      );
+    }
+  }
+
+  ctx.restore();
+}
 
   const Render = {
     background(ctx, time) {
+  const activeMap =
+    OLW.Maps?.image?.() ||
+    OLW.Assets?.map?.('frontier');
+
+  if (activeMap) {
+    ctx.drawImage(
+      activeMap,
+      0,
+      0,
+      C.WIDTH,
+      C.HEIGHT
+    );
+
+    /*
+     * Slight global night treatment.
+     * The original map artwork remains visible.
+     */
+    ctx.save();
+
+    ctx.fillStyle =
+      'rgba(4, 8, 14, .11)';
+
+    ctx.fillRect(
+      0,
+      0,
+      C.WIDTH,
+      C.HEIGHT
+    );
+
+    ctx.restore();
+
+    drawMapAtmosphere(
+      ctx,
+      time,
+      OLW.Maps?.currentId ||
+      'frontier'
+    );
+
+    return;
+  }
+
+  /* existing procedural fallback below */
       if (OLW.Assets && OLW.Assets.ready('arena')) {
         const img = OLW.Assets.images.arena;
         const scale = Math.max(C.WIDTH / img.naturalWidth, C.HEIGHT / img.naturalHeight);
@@ -81,10 +231,10 @@ window.OLW = window.OLW || {};
       ctx.stroke();
     },
 
-    outpost(ctx, integrity01, time) {
+    outpost(ctx, integrity01, time, actionState) {
       const flick = 0.85 + Math.sin(time * 12) * 0.06 + Math.sin(time * 27) * 0.04;
 
-      if (OLW.Assets && OLW.Assets.ready('arena')) {
+      if (OLW.Assets && OLW.Assets.ready('warden')) {
         // Integrity halo sits exactly over the palisade in the arena art.
         ctx.save();
         ctx.translate(CX, CY);
@@ -95,15 +245,62 @@ window.OLW = window.OLW || {};
         ctx.beginPath(); ctx.arc(0, 0, C.WALL_RADIUS, 0, U.TAU * integrity01); ctx.stroke();
         ctx.setLineDash([]);
 
-        // Animated guard on the watch platform.
-        if (OLW.Assets.ready('warden')) {
-          const img = OLW.Assets.images.warden;
-          const cw = img.naturalWidth / 5, ch = img.naturalHeight;
-          const frame = Math.floor(time * 2.6) % 4;
-          const h = 112 + Math.sin(time * 2.1) * 1.5, w = h * (cw / ch);
-          ctx.shadowColor = 'rgba(232,161,58,.55)'; ctx.shadowBlur = 12;
-          ctx.drawImage(img, frame * cw, 0, cw, ch, -w / 2, -h * .66, w, h);
+        // Warden animation: slow idle loop + deliberate firing sequence.
+        // The runtime action atlas is 6 equal columns made from the supplied
+        // transparent rifle character sheet (not the tower/portrait composite).
+        const actionReady = OLW.Assets.ready('wardenAction');
+        const idleReady = OLW.Assets.ready('wardenIdle');
+        const img = actionReady ? OLW.Assets.images.wardenAction : OLW.Assets.images.warden;
+
+        const aimX = actionState?.aimX ?? CX + 100;
+        const aimY = actionState?.aimY ?? CY;
+        const dx = aimX - CX;
+        const dy = aimY - CY;
+        const faceLeft = dx < 0;
+
+        // Only a subtle vertical lean is applied. Rotating a front-facing human
+        // 360 degrees makes him appear to lie down; left/right mirroring handles
+        // the strong direction cue while the actual bolt travels to the cursor.
+        const verticalLean = U.clamp(dy / (C.HEIGHT * .5), -1, 1) * 0.075;
+
+        let frame = 0;
+        let frameCount = 1;
+        let cw = img.naturalWidth;
+        const ch = img.naturalHeight;
+
+        if (actionReady) {
+          frameCount = 6;
+          cw = img.naturalWidth / frameCount;
+          if (actionState?.p1Shooting) {
+            // 0.42 sec total: raise -> aim -> fire -> recoil -> settle.
+            const remaining = U.clamp(actionState.p1ShotAnim || 0, 0, .42);
+            const progress = 1 - remaining / .42;
+            const sequence = [1, 2, 4, 5, 2, 1];
+            frame = sequence[Math.min(sequence.length - 1, Math.floor(progress * sequence.length))];
+          } else {
+            // Slow, calm idle breathing; no rapid cycling through firing poses.
+            frame = (Math.floor(time * 1.15) % 2) ? 3 : 0;
+          }
         }
+
+        const h = 118 + Math.sin(time * 2.0) * 1.2;
+        const w = h * (cw / ch);
+
+        ctx.save();
+        ctx.rotate(verticalLean * (faceLeft ? -1 : 1));
+        if (faceLeft) ctx.scale(-1, 1);
+        ctx.shadowColor = actionState?.p1Shooting ? 'rgba(255,217,138,.92)' : 'rgba(232,161,58,.48)';
+        ctx.shadowBlur = actionState?.p1Shooting ? 18 : 10;
+        ctx.drawImage(img, frame * cw, 0, cw, ch, -w / 2, -h * .68, w, h);
+
+        if (actionState?.p1Shooting && (actionState.p1ShotAnim || 0) > .10 && (actionState.p1ShotAnim || 0) < .25) {
+          ctx.fillStyle = COL.torchCore;
+          ctx.globalAlpha = .9;
+          ctx.beginPath();
+          ctx.arc(w * .34, -h * .38, 5.5, 0, U.TAU);
+          ctx.fill();
+        }
+        ctx.restore();
         // Pulsing watchfire lens glow.
         const gg = ctx.createRadialGradient(0, -10, 0, 0, -10, 88);
         gg.addColorStop(0, U.rgba(COL.torchCore, .12 * flick));

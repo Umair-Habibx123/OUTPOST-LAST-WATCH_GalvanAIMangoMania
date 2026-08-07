@@ -14,7 +14,14 @@ window.OLW = window.OLW || {};
   class Game {
     constructor(canvas, hooks) {
       this.canvas = canvas;
-      this.ctx = canvas.getContext("2d");
+      this.ctx =
+  canvas.getContext(
+    '2d',
+    {
+      alpha: false,
+      desynchronized: true
+    }
+  );
       this.hooks = hooks || {};
       this.state = "menu"; // menu | playing | paused | over
       this.aim = { x: CX, y: CY - 120 };
@@ -43,9 +50,13 @@ window.OLW = window.OLW || {};
       this.kills = 0;
       this.perfectWaves = 0;
       this.mangoGrabbed = 0;
+      this.statsTick = 0;
       this.bonusScore = 0;
       this.strikeCd = 0;
       this.player2StrikeCd = 0;
+      // Visual firing animation is intentionally longer than the gameplay cooldown.
+      // This keeps the warden readable instead of flashing a single still frame.
+      this.wardenShotAnim = 0;
 
       this.combo = 0;
 
@@ -156,6 +167,7 @@ strikeAt(ax, ay, playerSlot) {
     }
 
     this.strikeCd = C.STRIKE_COOLDOWN;
+    this.wardenShotAnim = 0.42;
   }
 
   /*
@@ -552,15 +564,48 @@ strikeAt(ax, ay, playerSlot) {
     }
 
     /* ---- effects ---- */
-    spawnSparks(x, y, color, n, speed) {
-      for (let i = 0; i < n; i++) {
-        this.effects.push(
-          new OLW.Particle(x, y, color, {
-            speed: speed ? U.rand(60, speed) : undefined,
-          }),
-        );
-      }
-    }
+   spawnSparks(
+  x,
+  y,
+  color,
+  n,
+  speed
+) {
+  const MAX_EFFECTS = 420;
+
+  const available =
+    Math.max(
+      0,
+      MAX_EFFECTS -
+      this.effects.length
+    );
+
+  const count =
+    Math.min(n, available);
+
+  for (
+    let i = 0;
+    i < count;
+    i += 1
+  ) {
+    this.effects.push(
+      new OLW.Particle(
+        x,
+        y,
+        color,
+        {
+          speed:
+            speed
+              ? U.rand(
+                  60,
+                  speed
+                )
+              : undefined
+        }
+      )
+    );
+  }
+}
     addFloater(x, y, text, color, size) {
       this.effects.push(new OLW.Floater(x, y, text, color, size));
     }
@@ -575,6 +620,9 @@ strikeAt(ax, ay, playerSlot) {
 
 if (this.player2StrikeCd > 0) {
   this.player2StrikeCd -= dt;
+}
+if (this.wardenShotAnim > 0) {
+  this.wardenShotAnim = Math.max(0, this.wardenShotAnim - dt);
 }
       if (this.comboTimer > 0) {
         this.comboTimer -= dt;
@@ -630,7 +678,12 @@ if (this.player2StrikeCd > 0) {
       // defeat
       if (this.integrity <= 0) this.gameOver();
 
-      this.emitStats();
+   this.statsTick += dt;
+
+if (this.statsTick >= 0.05) {
+  this.statsTick = 0;
+  this.emitStats();
+}
     }
 
     onRaiderLanded(r) {
@@ -680,6 +733,13 @@ if (
   OLW.Multiplayer.notifyMatchEnded(result);
 }
       this.hooks.onGameOver && this.hooks.onGameOver(result);
+      /*
+ * Game-over screen is DOM-driven.
+ * No reason to render the battlefield at 60 FPS
+ * while a modal covers it.
+ */
+this.render();
+this.stop();
     }
 
     emitStats() {
@@ -730,7 +790,18 @@ if (
 
       // draw raiders behind the outpost (those above center) first is complex;
       // simple readable approach: outpost, then raiders, then near effects.
-      OLW.Render.outpost(ctx, this.integrity / C.INTEGRITY_MAX, this.time);
+      OLW.Render.outpost(
+        ctx,
+        this.integrity / C.INTEGRITY_MAX,
+        this.time,
+        {
+          p1Shooting: this.wardenShotAnim > 0,
+          p1ShotAnim: this.wardenShotAnim,
+          aimX: this.aim.x,
+          aimY: this.aim.y,
+          p2Shooting: this.player2StrikeCd > 0
+        }
+      );
 
       for (const r of drawList) r.draw(ctx);
       if (this.cart) this.cart.draw(ctx);

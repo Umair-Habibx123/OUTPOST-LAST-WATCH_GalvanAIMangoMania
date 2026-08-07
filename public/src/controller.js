@@ -1,3 +1,5 @@
+// src/controller.js
+
 (function () {
   // stable per-phone id so a refresh reclaims the same seat
   let clientId = null;
