@@ -827,7 +827,7 @@ button {
     width: min(43vw, 610px);
     height: 94%;
     pointer-events: none;
-    background: url("assets/art/optimized/warden-portrait.webp") right bottom / contain no-repeat;
+    background: url("assets/branding/warden-portrait.webp") right bottom / contain no-repeat;
     -webkit-mask-image: linear-gradient(100deg, transparent 0%, #000 28%);
     mask-image: linear-gradient(100deg, transparent 0%, #000 28%);
     filter: drop-shadow(-18px 16px 26px rgba(0, 0, 0, .6));
@@ -1157,7 +1157,7 @@ button {
       rgba(3, 5, 8, .92),
       transparent 48%
     ),
-    url("assets/art/optimized/outpost-title-backdrop.webp");
+    url("assets/branding/outpost-title-backdrop.webp");
 
   background-size: cover;
   background-position: center;

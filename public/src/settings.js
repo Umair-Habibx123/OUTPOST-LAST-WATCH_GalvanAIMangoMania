@@ -9,13 +9,27 @@ window.OLW = window.OLW || {};
 
 OLW.Settings = (function () {
   const D = OLW.Device;
-  const DEFAULTS = { sound: true, reticle: 'brackets', shake: true };
+  const DEFAULTS = { sound: true, reticle: 'brackets', shake: true, backup: 'auto', controlMode: 'device' };
+
+  const CONTROLMODES = [
+    { id: 'device', name: 'Mouse / Keys' },
+    { id: 'assist', name: 'AI aim-assist' },
+    { id: 'gesture', name: 'Hand (cam)' },
+    { id: 'face', name: 'Face + blink (cam)' },
+    { id: 'voice', name: 'Voice (mic)' },
+  ];
 
   const RETICLES = [
     { id: 'brackets', name: 'Brackets' },
     { id: 'ring', name: 'Ring' },
     { id: 'dot', name: 'Dot + cross' },
     { id: 'chevron', name: 'Chevrons' },
+  ];
+
+  const BACKUPS = [
+    { id: 'auto', name: 'Auto-defend' },
+    { id: 'keyboard', name: 'Keyboard' },
+    { id: 'off', name: 'Off' },
   ];
 
   function all() { return Object.assign({}, DEFAULTS, D.profile.settings || {}); }
@@ -112,6 +126,12 @@ OLW.Settings = (function () {
     const ret = S.get('reticle');
     const retOpts = RETICLES.map(r =>
       `<button class="set-chip${ret === r.id ? ' sel' : ''}" data-reticle="${r.id}">${r.name}</button>`).join('');
+    const bk = S.get('backup');
+    const bkOpts = BACKUPS.map(b =>
+      `<button class="set-chip${bk === b.id ? ' sel' : ''}" data-backup="${b.id}">${b.name}</button>`).join('');
+    const cm = S.get('controlMode');
+    const cmOpts = CONTROLMODES.map(c =>
+      `<button class="set-chip${cm === c.id ? ' sel' : ''}" data-ctrlmode="${c.id}">${c.name}</button>`).join('');
     panel.innerHTML =
       `<div class="set-panel">
         <div class="set-head"><span class="panel-kicker">SETTINGS</span></div>
@@ -119,6 +139,8 @@ OLW.Settings = (function () {
           ${toggleRow('Sound', 'sound', 'Music &amp; effects')}
           ${toggleRow('Screen shake', 'shake', 'Camera kick on impacts')}
           <div class="set-row set-col"><div class="set-info"><b>Aim reticle</b><small>Saved on this device</small></div><div class="set-chips">${retOpts}</div></div>
+          <div class="set-row set-col"><div class="set-info"><b>Control mode</b><small>Mouse/keys always work as a fallback. Cam/mic modes are experimental.</small></div><div class="set-chips">${cmOpts}</div></div>
+          <div class="set-row set-col"><div class="set-info"><b>Player 2 backup</b><small>If the phone controller loses connection mid-match</small></div><div class="set-chips">${bkOpts}</div></div>
           <div class="set-controls">
             <b>Controls</b>
             <ul>
@@ -135,6 +157,13 @@ OLW.Settings = (function () {
     panel.querySelector('.set-close').onclick = closePanel;
     panel.querySelectorAll('[data-toggle]').forEach(b => b.onclick = () => { const k = b.getAttribute('data-toggle'); S.set(k, !S.get(k)); if (OLW.Audio) OLW.Audio.resume(); });
     panel.querySelectorAll('[data-reticle]').forEach(b => b.onclick = () => S.set('reticle', b.getAttribute('data-reticle')));
+    panel.querySelectorAll('[data-backup]').forEach(b => b.onclick = () => S.set('backup', b.getAttribute('data-backup')));
+    panel.querySelectorAll('[data-ctrlmode]').forEach(b => b.onclick = () => {
+      const m = b.getAttribute('data-ctrlmode');
+      S.set('controlMode', m);
+      window.dispatchEvent(new CustomEvent('olw:controlmode', { detail: m }));  // switch live
+      if (OLW.Audio) OLW.Audio.resume();
+    });
   }
 
   function openPanel() { if (!panel) { panel = el('div', 'set-overlay hidden'); (document.getElementById('stage') || document.body).appendChild(panel); } renderPanel(); panel.classList.remove('hidden'); }

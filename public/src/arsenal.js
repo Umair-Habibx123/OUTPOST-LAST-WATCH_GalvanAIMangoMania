@@ -67,6 +67,13 @@ OLW.Arsenal = (function () {
     return `<img class="${cls}" src="assets/art/icons/${id}${suffix}.webp" loading="eager" decoding="async" draggable="false" alt="">`;
   };
 
+  // Upgrade art uses its own filenames (optimised webp copies).
+  const UP_ICON = { armour: 'armour-ic.webp', coinGain: 'coinrunner-ic.webp', startCoins: 'warchest-ic.webp' };
+  const upIconImg = (key) => {
+    const f = UP_ICON[key];
+    return f ? `<img class="ars-ic" src="assets/art/icons/${f}" loading="lazy" decoding="async" draggable="false" alt="" onerror="this.remove()">` : '';
+  };
+
   const COIN = { kill: 8, perfect: 50, mango: 30 };
   const MAX_LEVEL = 20;
 
@@ -875,7 +882,7 @@ OLW.Arsenal = (function () {
         maxed
           ? '<span class="ars-tag-owned">Max</span>'
           : `<button class="ars-buy${can ? '' : ' dis'}" data-up="${u.key}">◎ ${cost}</button>`,
-        null
+        upIconImg(u.key)
       );
     }).join('');
 

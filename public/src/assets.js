@@ -3,7 +3,7 @@ window.OLW = window.OLW || {};
 OLW.Assets = (function () {
   const files = {
     raiders:
-      'assets/art/optimized/raider-atlas.webp',
+      '',
 
     warden:
       'assets/art/optimized/warden-atlas.webp',
