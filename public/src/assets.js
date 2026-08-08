@@ -1,103 +1,117 @@
 window.OLW = window.OLW || {};
 
 OLW.Assets = (function () {
+  /*
+   * IMPORTANT:
+   * These paths match the redesigned assets library exactly.
+   * Character artwork in the supplied assets archive is PNG; maps/UI are WebP/PNG.
+   */
   const files = {
-    raiders:
-      '',
+    raiders: [
+      'assets/art/characters/raider_atlas.png'
+    ],
 
-    warden:
-      'assets/art/optimized/warden-atlas.webp',
+    wardenDirectional: ['assets/art/characters/warden-directional-atlas.webp'],
+    backupGuardAtlas: ['assets/art/characters/backup-guard-atlas.webp'],
+    warBeastAtlas: ['assets/art/characters/war-beast-atlas.webp'],
+    dragonAtlas: ['assets/art/characters/dragon-atlas.webp'],
+    raiderCreatures: ['assets/art/characters/raider-creature-atlas.webp'],
+    supplyCartAtlas: ['assets/art/characters/supply-cart-atlas.webp'],
 
-    portrait:
-      'assets/art/optimized/warden-portrait.webp',
+    // Current redesigned warden sheet.
+    // The renderer treats it as a horizontal action sheet when possible.
+    warden: [
+      'assets/art/characters/warden.png'
+    ],
 
-    title:
-      'assets/art/optimized/outpost-title-backdrop.webp',
+    portrait: [
+      'assets/branding/warden-portrait.webp'
+    ],
 
-    dragon:
-      'assets/art/characters/dragon.webp',
+    title: [
+      'assets/branding/outpost-title-backdrop.webp'
+    ],
 
-    warBeast:
-      'assets/art/characters/war-beast.webp',
+    dragon: [
+      'assets/art/characters/dragon.png'
+    ],
 
-    backupGuard:
-      'assets/art/characters/backup-guard.webp',
+    warBeast: [
+      'assets/art/characters/war-beast.png'
+    ],
 
-    wardenAction:
-      'assets/art/characters/warden-action-atlas.webp',
+    backupGuard: [
+      'assets/art/characters/backup-guard.png'
+    ],
 
-    wardenIdle:
-      'assets/art/characters/warden-idle.webp',
-
-    mapFrontier:
+    mapFrontier: [
       'assets/art/maps/map-frontier.webp',
+      'assets/art/maps/map-frontier-960.webp'
+    ],
 
-    mapOrchard:
+    mapOrchard: [
       'assets/art/maps/map-orchard.webp',
+      'assets/art/maps/map-orchard-960.webp'
+    ],
 
-    mapFrost:
-      'assets/art/maps/map-frost.webp'
+    mapFrost: [
+      'assets/art/maps/map-frost.webp',
+      'assets/art/maps/map-frost-960.webp'
+    ]
   };
 
   const images = {};
+  const loadedUrl = {};
 
-  function load(key, url) {
+  function loadCandidates(key, candidates) {
+    const list = Array.isArray(candidates) ? candidates.slice() : [candidates];
     const image = new Image();
-
     image.decoding = 'async';
-
-    image.src = url;
-
     images[key] = image;
 
-    /*
-     * Ask the browser to decode early.
-     * Failure here is harmless because drawImage()
-     * still works after normal loading.
-     */
-    image.decode?.().catch(() => {});
+    let index = 0;
 
+    const tryNext = () => {
+      if (index >= list.length) {
+        console.warn(`[Outpost Assets] Unable to load ${key}`, list);
+        return;
+      }
+
+      const url = list[index++];
+      image.onload = () => {
+        loadedUrl[key] = url;
+        image.decode?.().catch(() => {});
+      };
+      image.onerror = tryNext;
+      image.src = url;
+    };
+
+    tryNext();
     return image;
   }
 
-  Object.entries(files).forEach(
-    ([key, url]) => load(key, url)
-  );
+  Object.entries(files).forEach(([key, value]) => loadCandidates(key, value));
 
   function ready(key) {
     const image = images[key];
-
-    return Boolean(
-      image &&
-      image.complete &&
-      image.naturalWidth > 0
-    );
+    return Boolean(image && image.complete && image.naturalWidth > 0);
   }
 
   function mapKey(id) {
-    switch (id) {
-      case 'orchard':
-        return 'mapOrchard';
-
-      case 'frost':
-        return 'mapFrost';
-
-      default:
-        return 'mapFrontier';
-    }
+    if (id === 'orchard') return 'mapOrchard';
+    if (id === 'frost') return 'mapFrost';
+    return 'mapFrontier';
   }
 
   function map(id) {
     const key = mapKey(id);
-
-    return ready(key)
-      ? images[key]
-      : null;
+    return ready(key) ? images[key] : null;
   }
 
   return {
     files,
     images,
+    loadedUrl,
     ready,
     map
   };

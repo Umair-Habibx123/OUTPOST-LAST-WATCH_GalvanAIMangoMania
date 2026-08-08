@@ -244,7 +244,7 @@ function renderPicker() {
           data-map="${map.id}"
         >
           <img
-            src="assets/art/maps/map-${map.id}.webp"
+            src="assets/art/maps/map-${map.id}-960.webp"
             alt=""
           />
 

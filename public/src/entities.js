@@ -99,28 +99,33 @@ window.OLW = window.OLW || {};
     const r = rd.r;
     const flash = rd.hitFlash > 0;
 
-    // Production atlas path: three classes x four animation frames.
+    // Creature atlas is mixed into later waves; gameplay stats still come from rd.type.
+    if (rd.creature && OLW.Assets?.ready?.('raiderCreatures')) {
+      const img = OLW.Assets.images.raiderCreatures;
+      const cw = img.naturalWidth / 4, ch = img.naturalHeight / 3;
+      const row = rd.type === 'fast' ? 0 : (rd.type === 'tough' ? 1 : 2);
+      const frame = Math.floor(rd.bob / 1.25) % 3;
+      const size = r * (rd.type === 'tough' ? 4.7 : 4.3);
+      ctx.save(); ctx.rotate(rd.angle);
+      ctx.shadowColor = flash ? COL.torchCore : 'rgba(0,0,0,.65)'; ctx.shadowBlur = flash ? 18 : 8;
+      ctx.filter = flash ? 'brightness(2.1) saturate(.35)' : 'none';
+      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, frame*cw, row*ch, cw, ch, -size/2, -size*.72, size, size);
+      ctx.restore(); return;
+    }
+
+    // Production human raider atlas: three classes x four animation frames.
     if (OLW.Assets && OLW.Assets.ready('raiders')) {
       const img = OLW.Assets.images.raiders;
       const cw = img.naturalWidth / 4, ch = img.naturalHeight / 3;
       const row = rd.type === 'fast' ? 0 : (rd.type === 'tough' ? 2 : 1);
       const frame = Math.floor(rd.bob / 1.35) % 4;
       const size = r * (rd.type === 'tough' ? 4.65 : 4.5);
-      ctx.save();
-      // Atlas characters face down; rotate them toward the outpost.
-      ctx.rotate(rd.angle + Math.PI / 2);
-      ctx.shadowColor = flash ? COL.torchCore : 'rgba(0,0,0,.65)';
-      ctx.shadowBlur = flash ? 18 : 8;
-      ctx.filter = flash ? 'brightness(2.1) saturate(.35)' : 'none';
-      ctx.drawImage(img, frame * cw, row * ch, cw, ch, -size / 2, -size * .62, size, size);
-      ctx.restore();
-      if (rd.type === 'tough' && rd.alive) {
-        const pipW = r * .42;
-        for (let i = 0; i < rd.maxHp; i++) {
-          ctx.fillStyle = i < rd.hp ? COL.raiderToughRim : 'rgba(255,255,255,.16)';
-          ctx.fillRect((i - 1.5) * (pipW + 2), -r * 2.65, pipW, 3);
-        }
-      }
+      ctx.save(); ctx.rotate(rd.angle + Math.PI/2);
+      ctx.shadowColor = flash ? COL.torchCore : 'rgba(0,0,0,.65)'; ctx.shadowBlur = flash ? 18 : 8;
+      ctx.filter = flash ? 'brightness(2.1) saturate(.35)' : 'none'; ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, frame*cw, row*ch, cw, ch, -size/2, -size*.70, size, size); ctx.restore();
+      if (rd.type === 'tough' && rd.alive) { const pipW=r*.42; for (let i=0;i<rd.maxHp;i++) { ctx.fillStyle=i<rd.hp?COL.raiderToughRim:'rgba(255,255,255,.16)'; ctx.fillRect((i-1.5)*(pipW+2),-r*2.65,pipW,3); } }
       return;
     }
 
@@ -215,38 +220,14 @@ window.OLW = window.OLW || {};
     }
     draw(ctx) {
       if (!this.alive) return;
-      const bob = Math.sin(this.wobble) * 2;
-      ctx.save();
-      ctx.translate(this.x, this.y + bob);
-      // shadow
-      ctx.fillStyle = 'rgba(0,0,0,0.3)';
-      ctx.beginPath();
-      ctx.ellipse(0, 16, 26, 7, 0, 0, U.TAU);
-      ctx.fill();
-      // cart bed
-      ctx.fillStyle = this.hitFlash > 0 ? '#caa76a' : COL.wood;
-      ctx.fillRect(-22, -6, 44, 14);
-      ctx.fillStyle = COL.woodDark;
-      ctx.fillRect(-22, 4, 44, 4);
-      // wheels
-      ctx.fillStyle = '#241a10';
-      ctx.beginPath(); ctx.arc(-13, 12, 6, 0, U.TAU); ctx.fill();
-      ctx.beginPath(); ctx.arc(13, 12, 6, 0, U.TAU); ctx.fill();
-      // mango pile
-      const mango = (mx, my, s) => {
-        ctx.fillStyle = COL.mango;
-        ctx.beginPath(); ctx.ellipse(mx, my, s, s * 0.82, 0.3, 0, U.TAU); ctx.fill();
-        ctx.fillStyle = COL.mangoShade;
-        ctx.beginPath(); ctx.ellipse(mx + s * 0.25, my + s * 0.2, s * 0.5, s * 0.4, 0.3, 0, U.TAU); ctx.fill();
-        ctx.fillStyle = COL.mangoLeaf;
-        ctx.beginPath(); ctx.ellipse(mx - s * 0.4, my - s * 0.7, s * 0.35, s * 0.16, -0.5, 0, U.TAU); ctx.fill();
-      };
-      mango(-9, -10, 7); mango(8, -9, 8); mango(-1, -16, 6.5);
-      // faint warm glow so it reads as the "prize"
-      ctx.globalAlpha = 0.25;
-      ctx.fillStyle = COL.mango;
-      ctx.beginPath(); ctx.arc(0, -8, 30, 0, U.TAU); ctx.fill();
-      ctx.restore();
+      if (OLW.Assets?.ready?.('supplyCartAtlas')) {
+        const img=OLW.Assets.images.supplyCartAtlas,cw=img.naturalWidth/4,ch=img.naturalHeight;
+        let frame=Math.floor(this.wobble*.55)%2; if (this.hitFlash>0) frame=2; else if (this.hp===1) frame=3;
+        const w=88,h=w*(ch/cw),bob=Math.sin(this.wobble)*1.8;
+        ctx.save(); ctx.translate(this.x,this.y+bob); if (this.vx<0) ctx.scale(-1,1); ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
+        ctx.shadowColor='rgba(239,166,68,.34)'; ctx.shadowBlur=9; ctx.drawImage(img,frame*cw,0,cw,ch,-w/2,-h*.70,w,h); ctx.restore(); return;
+      }
+      const bob=Math.sin(this.wobble)*2; ctx.save(); ctx.translate(this.x,this.y+bob); ctx.fillStyle=this.hitFlash>0?'#caa76a':COL.wood; ctx.fillRect(-22,-6,44,14); ctx.fillStyle=COL.mango; ctx.beginPath(); ctx.arc(0,-10,12,0,U.TAU); ctx.fill(); ctx.restore();
     }
   }
 

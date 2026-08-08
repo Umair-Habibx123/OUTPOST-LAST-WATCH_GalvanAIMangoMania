@@ -155,3 +155,93 @@ body {
   /* short landscape (phones held sideways): pull HUD in tight */
   .volley-wrap { bottom: 8px; }
 }
+
+
+/* ==========================================================================
+   HUD / ARSENAL COLLISION SAFETY
+   ========================================================================== */
+
+/* Reserve a clean bottom gameplay control zone. */
+.ars-dock {
+  bottom: max(62px, env(safe-area-inset-bottom, 0px) + 58px) !important;
+  width: min(900px, calc(100vw - 150px)) !important;
+  max-height: 118px;
+  overflow: visible;
+}
+
+.ars-bar,
+.ars-items {
+  max-width: 100%;
+  flex-wrap: nowrap !important;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  justify-content: center;
+}
+
+.ars-bar::-webkit-scrollbar,
+.ars-items::-webkit-scrollbar {
+  display: none;
+}
+
+.ars-w,
+.ars-item {
+  flex: 0 0 auto;
+}
+
+.volley-wrap {
+  bottom: 10px !important;
+}
+
+.ars-quit {
+  left: 12px !important;
+  bottom: 12px !important;
+}
+
+#pause-btn {
+  right: 12px !important;
+  bottom: 12px !important;
+}
+
+.mute-btn {
+  right: 54px !important;
+  bottom: 12px !important;
+}
+
+@media (max-width: 900px) {
+  .ars-dock {
+    width: calc(100vw - 118px) !important;
+  }
+
+  .ars-w-body b,
+  .ars-item-body b {
+    max-width: 72px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+}
+
+@media (max-height: 600px) and (orientation: landscape) {
+  .ars-dock {
+    bottom: 50px !important;
+    width: calc(100vw - 140px) !important;
+    max-height: 86px;
+    gap: 3px !important;
+  }
+
+  .ars-bar,
+  .ars-items {
+    justify-content: flex-start !important;
+  }
+
+  .ars-w,
+  .ars-item {
+    min-height: 31px;
+  }
+
+  .ars-w-body b,
+  .ars-item-body b {
+    font-size: 8px !important;
+  }
+}

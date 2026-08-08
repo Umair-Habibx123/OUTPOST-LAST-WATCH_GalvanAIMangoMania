@@ -193,17 +193,102 @@ if (
   canvas.style.touchAction = 'none';
 
 
-  // keyboard: P/Esc pause, Space strike at last aim
+  function visibleScreenName() {
+    for (const [name, node] of Object.entries(screenEls)) {
+      if (node && !node.classList.contains('hidden')) return name;
+    }
+    return null;
+  }
+
+  function closeTopModal() {
+    // Dynamic overlays first.
+    const armory = document.querySelector('.ars-shop:not(.hidden)');
+    if (armory) {
+      if (OLW.Arsenal?.close) OLW.Arsenal.close();
+      else armory.classList.add('hidden');
+      return true;
+    }
+
+    const settings = document.querySelector('.set-overlay:not(.hidden)');
+    if (settings) {
+      if (OLW.Settings?.close) OLW.Settings.close();
+      else settings.classList.add('hidden');
+      return true;
+    }
+
+    const visible = visibleScreenName();
+    if (!visible || visible === 'title') return false;
+
+    if (visible === 'qr') {
+      // If a room was already created, cancel it cleanly rather than merely
+      // hiding its UI and leaving the server room alive.
+      const lobby = $('room-lobby');
+      if (lobby && !lobby.classList.contains('hidden')) {
+        cancelSharedRoom();
+      } else {
+        showScreen('title');
+      }
+      return true;
+    }
+
+    showScreen('title');
+    return true;
+  }
+
+  // ESC closes any modal/screen first. Only when no modal is open does it
+  // behave as gameplay pause/resume. P always remains the dedicated pause key.
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
-      if (game.state === 'playing') { game.pause(); }
-      else if (game.state === 'paused') { game.resume(); }
+    if (e.key === 'Escape') {
+      if (closeTopModal()) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        return;
+      }
+      if (game.state === 'playing') game.pause();
+      else if (game.state === 'paused') game.resume();
+      return;
+    }
+
+    if (e.key === 'p' || e.key === 'P') {
+      if (game.state === 'playing') game.pause();
+      else if (game.state === 'paused') game.resume();
     } else if (e.code === 'Space' && game.state === 'playing') {
       e.preventDefault();
       game.strike();
     } else if ((e.key === 'q' || e.key === 'Q') && game.state === 'playing') {
       game.useVolley();
     }
+  });
+
+  // Click/tap the dark backdrop to close every modal-style screen.
+  document.addEventListener('pointerdown', (e) => {
+    if (e.target.matches?.('.ars-shop')) {
+      OLW.Arsenal?.close?.();
+      return;
+    }
+    if (e.target.matches?.('.set-overlay')) {
+      OLW.Settings?.close?.();
+      return;
+    }
+    if (e.target.matches?.('.screen:not(.title-screen)')) {
+      closeTopModal();
+    }
+  });
+
+  // Give every non-title screen a consistent top-right X without duplicating
+  // markup in each HTML panel.
+  ['how', 'scores', 'qr', 'over'].forEach((name) => {
+    const screen = screenEls[name];
+    const panel = screen?.querySelector('.panel');
+    if (!panel || panel.querySelector('.modal-close')) return;
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'modal-close';
+    close.setAttribute('aria-label', 'Close');
+    close.title = 'Close';
+    close.textContent = '✕';
+    close.addEventListener('click', closeTopModal);
+    panel.appendChild(close);
   });
 document
   .querySelectorAll('.mode-option')

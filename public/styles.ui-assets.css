@@ -1,0 +1,190 @@
+/* OUTPOST: LAST WATCH — ASSET-DRIVEN UI LIBRARY
+   Paths match assets/art/ui/ in the redesigned asset archive. */
+
+:root {
+  --ui-frame: url("assets/art/ui/frame.png");
+  --ui-panel: url("assets/art/ui/panel-bg.webp");
+  --ui-banner: url("assets/art/ui/banner.png");
+  --ui-divider: url("assets/art/ui/divider.png");
+  --ui-button: url("assets/art/ui/btn.png");
+  --ui-button-secondary: url("assets/art/ui/btn-secondary.png");
+  --ui-tile: url("assets/art/ui/tile.png");
+  --ui-tile-selected: url("assets/art/ui/tile-selected.png");
+}
+
+.panel,
+.ars-shop-panel,
+.set-panel {
+  position: relative;
+  background-image:
+    linear-gradient(165deg, rgba(20, 19, 18, .93), rgba(7, 9, 13, .985)),
+    var(--ui-panel);
+  background-size: cover;
+  background-position: center;
+}
+
+.panel::after,
+.ars-shop-panel::after,
+.set-panel::after {
+  content: "";
+  position: absolute;
+  inset: -11px;
+  background: var(--ui-frame) center / 100% 100% no-repeat;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.panel::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -31px;
+  width: min(310px, 55%);
+  height: 64px;
+  transform: translateX(-50%);
+  background: var(--ui-banner) center / contain no-repeat;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.panel > *,
+.ars-shop-panel > *,
+.set-panel > * {
+  position: relative;
+  z-index: 5;
+}
+
+.panel-title::after {
+  content: "";
+  display: block;
+  width: min(360px, 82%);
+  height: 13px;
+  margin: 7px auto 0;
+  background: var(--ui-divider) center / contain no-repeat;
+}
+
+/* Buttons retain live text and accessibility — art is only the skin. */
+.primary-btn {
+  position: relative;
+  isolation: isolate;
+  border: 0 !important;
+  color: #f4dfb2 !important;
+  text-shadow: 0 2px 3px #1c0d05;
+  background-color: transparent !important;
+  background-image: var(--ui-button) !important;
+  background-size: 100% 100% !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  box-shadow: none !important;
+}
+
+.primary-btn:hover {
+  filter: brightness(1.12) saturate(1.08);
+}
+
+.secondary-btn,
+.room-back-btn {
+  color: #e8ddc7;
+  background: transparent var(--ui-button-secondary) center / 100% 100% no-repeat;
+  border: 0;
+}
+
+.secondary-tile {
+  background: transparent var(--ui-tile) center / 100% 100% no-repeat !important;
+  border: 0 !important;
+}
+
+.secondary-tile:hover,
+.secondary-tile:focus-visible {
+  background-image: var(--ui-tile-selected) !important;
+}
+
+.room-input {
+  background: transparent url("assets/art/ui/input.png") center / 100% 100% no-repeat !important;
+  border: 0 !important;
+}
+
+.room-select {
+  background-image: url("assets/art/ui/select.png") !important;
+}
+
+.mode-option {
+  background: transparent url("assets/art/ui/mode-card.png") center / 100% 100% no-repeat !important;
+  border: 0 !important;
+}
+
+.mode-option.selected {
+  background-image: url("assets/art/ui/mode-card-selected.png") !important;
+}
+
+.player-card {
+  background: transparent url("assets/art/ui/player-card.png") center / 100% 100% no-repeat !important;
+  border: 0 !important;
+}
+
+.player-card.waiting {
+  background-image: url("assets/art/ui/player-card-waiting.png") !important;
+}
+
+.game-qr {
+  padding: 21px !important;
+  background: url("assets/art/ui/qr-frame.png") center / 100% 100% no-repeat !important;
+  box-shadow: none !important;
+}
+
+.result-grid > div {
+  background: url("assets/art/ui/result-card.png") center / 100% 100% no-repeat !important;
+  border: 0 !important;
+}
+
+.rank-callout {
+  background: url("assets/art/ui/rank-callout.png") center / 100% 100% no-repeat !important;
+  border: 0 !important;
+}
+
+.score-row.top1 .rank {
+  background: url("assets/art/ui/medal1.png") center / contain no-repeat;
+}
+
+.score-row.top2 .rank {
+  background: url("assets/art/ui/medal2.png") center / contain no-repeat;
+}
+
+.score-row.top3 .rank {
+  background: url("assets/art/ui/medal3.png") center / contain no-repeat;
+}
+
+.ars-shop-x,
+.modal-close {
+  background: url("assets/art/ui/close.png") center / 100% 100% no-repeat !important;
+  border: 0 !important;
+  color: transparent !important;
+}
+
+.hero-play {
+  background-image: url("assets/art/ui/title-play.png") !important;
+  background-size: 100% 100% !important;
+}
+
+/* Stronger, game-like panel edge treatment without covering content. */
+.panel,
+.ars-shop-panel,
+.set-panel {
+  border: 1px solid rgba(202, 151, 78, .24) !important;
+  box-shadow:
+    0 28px 80px rgba(0, 0, 0, .72),
+    inset 0 0 45px rgba(0, 0, 0, .38);
+}
+
+@media (max-width: 650px) {
+  .panel::after,
+  .ars-shop-panel::after,
+  .set-panel::after {
+    inset: -4px;
+  }
+
+  .panel::before {
+    top: -18px;
+    height: 43px;
+  }
+}

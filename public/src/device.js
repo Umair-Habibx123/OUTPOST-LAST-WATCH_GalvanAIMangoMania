@@ -111,9 +111,14 @@ OLW.Device = (function () {
     upgradeLevel(key) { return (profile.upgrades || {})[key] || 0; },
 
     // server-authoritative economy
-    async purchase(kind, id2) {
+    async purchase(kind, id2, options) {
       const res = await post('/api/purchase', { deviceId: id, kind, id: id2 });
-      if (res && res.ok && res.profile) applyServerProfile(res.profile);
+      // Armory can opt out of applying each intermediate server response while
+      // it has optimistic purchases queued. The server stays authoritative;
+      // the final response (or load() after an error) reconciles the UI.
+      if ((!options || options.applyProfile !== false) && res && res.ok && res.profile) {
+        applyServerProfile(res.profile);
+      }
       return res;
     },
     async submitRun(stats) {

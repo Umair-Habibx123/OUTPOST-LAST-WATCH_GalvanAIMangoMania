@@ -56,34 +56,18 @@ window.OLW = window.OLW || {};
       this.spawnedThisWave = 0;
       this.pending = [];
 
-      // Map art uses eight real approach lanes. Keep enemy movement on those
-      // lanes instead of rotating the whole wave to arbitrary angles, which made
-      // raiders appear to cross cliffs / empty background areas.
-      const fixedLanes = [
-        0,
-        Math.PI * 0.25,
-        Math.PI * 0.5,
-        Math.PI * 0.75,
-        Math.PI,
-        Math.PI * 1.25,
-        Math.PI * 1.5,
-        Math.PI * 1.75
-      ];
-
-      // Pick a different subset/order each wave while preserving the same
-      // physical lanes drawn into every battlefield.
-      const lanes = fixedLanes.slice();
-      for (let i = lanes.length - 1; i > 0; i -= 1) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [lanes[i], lanes[j]] = [lanes[j], lanes[i]];
+      // Evenly spaced approach sectors with a random global offset.
+      const baseOffset = U.rand(0, U.TAU);
+      const sectors = [];
+      for (let i = 0; i < p.directions; i++) {
+        sectors.push(baseOffset + (i / p.directions) * U.TAU);
       }
-      const sectors = lanes.slice(0, p.directions);
 
       const interval = p.duration / p.count;
       for (let i = 0; i < p.count; i++) {
         // spread raiders across the active sectors, jittered so they don't stack
         const sector = sectors[i % sectors.length];
-        const angle = sector + U.rand(-0.07, 0.07);
+        const angle = sector + U.rand(-0.28, 0.28);
 
         let type = 'basic';
         const roll = Math.random();
@@ -91,7 +75,8 @@ window.OLW = window.OLW || {};
         else if (roll < p.toughChance + p.fastChance) type = 'fast';
 
         // small per-raider speed variance so a lane doesn't arrive as one clump
-        const spec = { angle, type, speedMul: p.speedMul * U.rand(0.92, 1.1) };
+        const creatureChance = U.clamp((this.wave - 4) * 0.035 + (p.raid ? 0.08 : 0), 0, 0.34);
+    const spec = { angle, type, speedMul: p.speedMul * U.rand(0.92, 1.1), creature: Math.random() < creatureChance };
         const t = i * interval + U.rand(-interval * 0.25, interval * 0.25);
         this.pending.push({ t: Math.max(0, t), spec });
       }
