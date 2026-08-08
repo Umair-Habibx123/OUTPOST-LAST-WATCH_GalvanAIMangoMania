@@ -23,8 +23,16 @@ import {
 import {
   leaderboardSubmissionSchema,
   profileSyncSchema,
+  purchaseSchema,
+  runSchema,
   parsePayload
 } from './server/validation.js';
+
+import {
+  applyPurchase,
+  applyRun,
+  sanitize
+} from './server/economy.js';
 
 import { configureSockets } from './server/socket.js';
 
@@ -287,60 +295,95 @@ app.delete('/api/admin/leaderboard', async (request, response) => {
   }
 });
 
-// ---- per-device player profile (coins, level, unlocks, ammo, settings) ----
+// ================= per-device player profile (SERVER-AUTHORITATIVE) =================
+// The browser holds ONLY its device id. All coins/unlocks/ammo/upgrades live here
+// and are mutated only through validated endpoints, so a tampered client can't
+// grant itself anything.
+
+async function loadProfile(deviceId) {
+  const rows = await sql`SELECT data FROM player_profiles WHERE device_id = ${deviceId}`;
+  return sanitize(rows.length ? rows[0].data : null);
+}
+
+async function saveProfile(deviceId, profile) {
+  const json = JSON.stringify(profile);
+  const bestScore = Math.max(0, Math.round(Number(profile.bestScore) || 0));
+  const displayName = (profile.name ? String(profile.name) : '').slice(0, 40) || null;
+  await sql`
+    INSERT INTO player_profiles (device_id, data, best_score, display_name, updated_at)
+    VALUES (${deviceId}, ${json}::jsonb, ${bestScore}, ${displayName}, NOW())
+    ON CONFLICT (device_id) DO UPDATE
+      SET data = ${json}::jsonb, best_score = ${bestScore},
+          display_name = ${displayName}, updated_at = NOW()
+  `;
+}
+
 app.get('/api/profile', async (request, response) => {
   const deviceId = String(request.query.deviceId || '').slice(0, 128);
-
   if (!deviceId) {
     response.status(400).json({ ok: false, message: 'deviceId is required.' });
     return;
   }
-
   try {
-    const rows = await sql`
-      SELECT data
-      FROM player_profiles
-      WHERE device_id = ${deviceId}
-    `;
-
-    response.json({
-      ok: true,
-      profile: rows.length ? rows[0].data : null
-    });
+    response.json({ ok: true, profile: await loadProfile(deviceId) });
   } catch (error) {
     console.error('Profile fetch failed', error);
     response.status(500).json({ ok: false, message: 'Unable to load profile.' });
   }
 });
 
-app.post('/api/profile', scoreLimiter, async (request, response) => {
+// Only NON-economy fields (settings / name / loadout / map) are accepted here.
+app.post('/api/profile', async (request, response) => {
   const parsed = parsePayload(profileSyncSchema, request.body);
+  if (!parsed.ok) { response.status(400).json(parsed); return; }
 
-  if (!parsed.ok) {
-    response.status(400).json(parsed);
-    return;
-  }
-
-  const { deviceId, profile } = parsed.data;
-  const bestScore = Math.max(0, Math.round(Number(profile.bestScore) || 0));
-  const displayName = (profile.name ? String(profile.name) : '').slice(0, 40) || null;
-  const json = JSON.stringify(profile);
-
+  const { deviceId, profile: incoming } = parsed.data;
   try {
-    await sql`
-      INSERT INTO player_profiles (device_id, data, best_score, display_name, updated_at)
-      VALUES (${deviceId}, ${json}::jsonb, ${bestScore}, ${displayName}, NOW())
-      ON CONFLICT (device_id) DO UPDATE
-        SET data = ${json}::jsonb,
-            best_score = ${bestScore},
-            display_name = ${displayName},
-            updated_at = NOW()
-    `;
-
-    response.json({ ok: true });
+    const profile = await loadProfile(deviceId);
+    if (incoming.settings && typeof incoming.settings === 'object') profile.settings = incoming.settings;
+    if (typeof incoming.name === 'string') profile.name = incoming.name.slice(0, 40);
+    if (typeof incoming.loadout === 'string') profile.loadout = incoming.loadout;
+    if (typeof incoming.map === 'string') profile.map = incoming.map;
+    await saveProfile(deviceId, profile);
+    response.json({ ok: true, profile });
   } catch (error) {
-    console.error('Profile save failed', error);
-    response.status(500).json({ ok: false, message: 'Unable to save profile.' });
+    console.error('Profile settings save failed', error);
+    response.status(500).json({ ok: false, message: 'Unable to save settings.' });
+  }
+});
+
+// Buy a weapon unlock / ammo clip / consumable / upgrade — validated + priced here.
+app.post('/api/purchase', async (request, response) => {
+  const parsed = parsePayload(purchaseSchema, request.body);
+  if (!parsed.ok) { response.status(400).json(parsed); return; }
+
+  const { deviceId, kind, id } = parsed.data;
+  try {
+    const profile = await loadProfile(deviceId);
+    const result = applyPurchase(profile, kind, id);
+    if (!result.ok) { response.status(400).json(result); return; }
+    await saveProfile(deviceId, result.profile);
+    response.json({ ok: true, profile: result.profile });
+  } catch (error) {
+    console.error('Purchase failed', error);
+    response.status(500).json({ ok: false, message: 'Purchase failed.' });
+  }
+});
+
+// End-of-run reward: server derives coins/xp from stats (capped) and persists.
+app.post('/api/run', async (request, response) => {
+  const parsed = parsePayload(runSchema, request.body);
+  if (!parsed.ok) { response.status(400).json(parsed); return; }
+
+  const { deviceId, stats } = parsed.data;
+  try {
+    const profile = await loadProfile(deviceId);
+    const result = applyRun(profile, stats);
+    await saveProfile(deviceId, result.profile);
+    response.json({ ok: true, profile: result.profile, earned: result.earned, xpGain: result.xpGain });
+  } catch (error) {
+    console.error('Run reward failed', error);
+    response.status(500).json({ ok: false, message: 'Unable to save run.' });
   }
 });
 

@@ -126,12 +126,35 @@ export const profileSyncSchema = z.object({
     .min(1)
     .max(128),
 
-  // the whole evolving profile blob; stored as JSONB. Size is capped by the
-  // express.json body limit, so we accept arbitrary known/unknown fields.
+  // Only non-economy fields (settings/name/loadout/map) are honoured server-side;
+  // economy fields in here are ignored. Accept a loose blob and filter later.
   profile: z
     .object({})
     .passthrough()
     .default({})
+});
+
+// A single validated purchase — the server decides if it's affordable/allowed.
+export const purchaseSchema = z.object({
+  deviceId: z.string().trim().min(1).max(128),
+  kind: z.enum(['unlock', 'ammo', 'item', 'upgrade']),
+  id: z.string().trim().min(1).max(40)
+});
+
+// End-of-run report; the server derives coins/xp from these (capped).
+export const runSchema = z.object({
+  deviceId: z.string().trim().min(1).max(128),
+  stats: z.object({
+    score: z.number().min(0).max(1e8).optional(),
+    time: z.number().min(0).max(36000).optional(),
+    kills: z.number().int().min(0).max(1e5).optional(),
+    waves: z.number().int().min(0).max(1e4).optional(),
+    perfectWaves: z.number().int().min(0).max(1e4).optional(),
+    mango: z.number().int().min(0).max(1e4).optional(),
+    ammo: z.object({}).passthrough().optional(),
+    items: z.object({}).passthrough().optional(),
+    loadout: z.string().max(40).optional()
+  }).default({})
 });
 
 export function parsePayload(schema, payload) {

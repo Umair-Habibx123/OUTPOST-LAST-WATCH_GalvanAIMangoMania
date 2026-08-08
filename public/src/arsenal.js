@@ -136,8 +136,7 @@ OLW.Arsenal = (function () {
       OLW.Audio?.strike?.();
       return false;
     }
-    A.current = w;
-    D.patch({ loadout: id });
+    A.current = w;   // loadout is persisted at run end via submitRun, not per-switch
     OLW.Audio?.hit?.();
     renderBar();
     return true;
@@ -602,27 +601,28 @@ OLW.Arsenal = (function () {
   };
 
   A.bankRun = function (game) {
-    D.addStash(A.runCoins);
+    // Report the run to the server, which credits coins/xp (capped) and records
+    // remaining ammo/items. Fire-and-forget: the profile updates on response and
+    // the olw:profilesync listener refreshes the UI.
+    const ammo = {};
+    for (const w of WEAPONS) if (!w.starter) ammo[w.id] = A._run[w.id] || 0;
+    const items = {};
+    for (const c of CONSUMABLES) items[c.id] = A._items[c.id] || 0;
 
-    for (const w of WEAPONS) {
-      if (!w.starter) D.profile.ammo[w.id] = A._run[w.id] || 0;
-    }
-
-    for (const c of CONSUMABLES) {
-      D.profile.items[c.id] = A._items[c.id] || 0;
-    }
-
-    const gained = Math.round((game.score || 0) / 8) + (game.kills || 0) * 2;
-    const before = level();
-    const nextXp = (D.profile.xp || 0) + gained;
-
-    D.patch({ xp: nextXp, level: levelFromXp(nextXp) });
-    D.rememberBest(game.score || 0);
+    OLW.Device.submitRun({
+      score: game.score || 0,
+      time: game.time || 0,
+      kills: game.kills || 0,
+      waves: game.director ? game.director.wave : 0,
+      perfectWaves: game.perfectWaves || 0,
+      mango: game.mangoGrabbed || 0,
+      ammo,
+      items,
+      loadout: A.current.id,
+    });
 
     A.runCoins = 0;
     hideHud();
-    A._lastXp = gained;
-    A._leveledTo = level() > before ? level() : 0;
   };
 
   let elCoins;
@@ -645,11 +645,14 @@ OLW.Arsenal = (function () {
     elCoins = el('div', 'ars-coins hidden', '<span class="ars-lv" id="ars-lv">Lv 1</span><span class="ars-coin-ico">◎</span><b id="ars-coin-val">0</b>');
     stage.appendChild(elCoins);
 
-    elBar = el('div', 'ars-bar hidden');
-    stage.appendChild(elBar);
-
+    // A single bottom dock stacks the items row above the weapons row, so they
+    // can never overlap no matter how many are owned or how they wrap.
+    const dock = el('div', 'ars-dock');
     elItems = el('div', 'ars-items hidden');
-    stage.appendChild(elItems);
+    elBar = el('div', 'ars-bar hidden');
+    dock.appendChild(elItems);
+    dock.appendChild(elBar);
+    stage.appendChild(dock);
 
     elQuit = el('button', 'ghost-btn ars-quit hidden', 'QUIT');
     elQuit.title = 'Abandon the watch (coins are kept)';
@@ -918,54 +921,20 @@ OLW.Arsenal = (function () {
     elShop.querySelector('.ars-shop-close').onclick = closeShop;
     elShop.querySelector('.ars-shop-x').onclick = closeShop;
 
-    elShop.querySelectorAll('[data-unlock]').forEach((button) => {
-      button.onclick = () => {
-        const w = byId(button.dataset.unlock);
-        if (D.spendStash(w.unlockCost)) {
-          D.unlock(w.id);
-          OLW.Audio?.mango?.();
-          afterBuy();
-        }
-      };
-    });
-
-    elShop.querySelectorAll('[data-ammo]').forEach((button) => {
-      button.onclick = () => {
-        const w = byId(button.dataset.ammo);
-        const cap = ammoCap(w);
-        if ((p.ammo[w.id] || 0) < cap && D.spendStash(w.clipCost)) {
-          D.profile.ammo[w.id] = Math.min(cap, (D.profile.ammo[w.id] || 0) + w.clip);
-          D.save();
-          OLW.Audio?.hit?.();
-          afterBuy();
-        }
-      };
-    });
-
-    elShop.querySelectorAll('[data-up]').forEach((button) => {
-      button.onclick = () => {
-        const upgrade = UPGRADES.find((u) => u.key === button.dataset.up);
-        const cost = upCost(upgrade);
-        if (cost != null && D.spendStash(cost)) {
-          D.setUpgradeLevel(upgrade.key, D.upgradeLevel(upgrade.key) + 1);
-          OLW.Audio?.mango?.();
-          afterBuy();
-        }
-      };
-    });
-
-    elShop.querySelectorAll('[data-item]').forEach((button) => {
-      button.onclick = () => {
-        const item = conById(button.dataset.item);
-        const limit = itemLimit(item);
-        if ((p.items[item.id] || 0) < limit && D.spendStash(item.cost)) {
-          p.items[item.id] = (p.items[item.id] || 0) + 1;
-          D.save();
-          OLW.Audio?.hit?.();
-          afterBuy();
-        }
-      };
-    });
+    // Every buy is validated + priced on the SERVER; the returned profile drives
+    // the re-render (via the olw:profilesync listener). A tampered client can't
+    // grant itself coins, unlocks, ammo or upgrades.
+    const buy = async (button, kind, id, sound) => {
+      if (button.classList.contains('dis') || button.disabled) return;
+      button.disabled = true;
+      const res = await OLW.Device.purchase(kind, id);
+      if (res && res.ok) { (sound || OLW.Audio?.mango || function () {})(); }
+      else { A.bump(); OLW.Audio?.strike?.(); renderShop(); }
+    };
+    elShop.querySelectorAll('[data-unlock]').forEach((b) => { b.onclick = () => buy(b, 'unlock', b.dataset.unlock); });
+    elShop.querySelectorAll('[data-ammo]').forEach((b) => { b.onclick = () => buy(b, 'ammo', b.dataset.ammo, () => OLW.Audio?.hit?.()); });
+    elShop.querySelectorAll('[data-item]').forEach((b) => { b.onclick = () => buy(b, 'item', b.dataset.item, () => OLW.Audio?.hit?.()); });
+    elShop.querySelectorAll('[data-up]').forEach((b) => { b.onclick = () => buy(b, 'upgrade', b.dataset.up); });
   }
 
   function afterBuy() {
@@ -1026,7 +995,8 @@ OLW.Arsenal = (function () {
       .ars-coins.flash{transform:translateX(-50%) scale(1.15);color:#fff}
       .ars-lv{font-size:10px;letter-spacing:1px;color:#e9dfcb;background:rgba(255,255,255,.08);padding:1px 7px;border-radius:10px}
       .ars-coin-ico{font-size:13px}
-      .ars-bar{position:absolute;left:50%;bottom:68px;transform:translateX(-50%);z-index:6;display:flex;gap:7px;pointer-events:auto;flex-wrap:wrap;justify-content:center;max-width:94%}
+      .ars-dock{position:absolute;left:50%;bottom:66px;transform:translateX(-50%);z-index:6;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;width:96%;max-width:920px}
+      .ars-bar{display:flex;gap:6px;pointer-events:auto;flex-wrap:wrap;justify-content:center;max-width:100%}
       .ars-w{display:flex;align-items:center;gap:7px;padding:6px 11px 6px 7px;background:rgba(10,13,18,.85);border:1px solid #3b3b44;color:#e9dfcb;cursor:pointer;border-radius:4px;transition:.12s}
       .ars-w:hover{border-color:#8a8270}
       .ars-w.cur{border-color:var(--amber,#e8a13a);box-shadow:0 0 14px rgba(232,161,58,.35);background:rgba(40,32,16,.9)}
@@ -1037,7 +1007,7 @@ OLW.Arsenal = (function () {
       .ars-w-body{display:flex;flex-direction:column;text-align:left;line-height:1.1}
       .ars-w-body b{font-size:11px}.ars-w-body small{font-size:9px;color:var(--gold,#f5c36b)}
 
-      .ars-items{position:absolute;left:50%;bottom:112px;transform:translateX(-50%);z-index:6;display:flex;gap:7px;pointer-events:auto;flex-wrap:wrap;justify-content:center;max-width:94%}
+      .ars-items{display:flex;gap:6px;pointer-events:auto;flex-wrap:wrap;justify-content:center;max-width:100%}
       .ars-item{display:flex;align-items:center;gap:6px;padding:5px 10px 5px 6px;background:rgba(18,14,20,.85);border:1px solid #4a3b52;color:#e9dfcb;cursor:pointer;border-radius:4px;transition:.12s}
       .ars-item:hover{border-color:#b07fd0}
       .ars-item-key{display:grid;place-items:center;width:19px;height:19px;border:1px solid #7a6c86;border-radius:3px;font-size:10px;font-weight:900}
@@ -1075,14 +1045,14 @@ OLW.Arsenal = (function () {
       .ars-shop-close{flex:none;margin-top:14px}
 
       @media(max-width:650px){
-        .ars-bar{bottom:66px;gap:4px;max-width:calc(100% - 14px)}.ars-w{padding:4px 6px;gap:4px}.ars-w-body b{font-size:9px}.ars-w-body small{font-size:8px}.ars-w-key{width:17px;height:17px}.ars-w-ic{width:18px;height:18px}.ars-items{bottom:103px;gap:4px}.ars-item{padding:4px 6px}.ars-item-body b{font-size:9px}
+        .ars-dock{bottom:58px;gap:6px}.ars-bar{gap:4px}.ars-w{padding:4px 6px;gap:4px}.ars-w-body b{font-size:9px}.ars-w-body small{font-size:8px}.ars-w-key{width:17px;height:17px}.ars-w-ic{width:18px;height:18px}.ars-items{gap:4px}.ars-item{padding:4px 6px}.ars-item-body b{font-size:9px}
         .ars-shop{padding:0}.ars-shop-panel{width:100vw;height:100dvh;max-height:none;border:0;border-radius:0;padding:14px}
         .ars-shop-row{grid-template-columns:68px minmax(0,1fr);min-height:78px}.ars-card-art{width:68px;height:62px}.ars-shop-action{grid-column:2;justify-content:flex-start;width:100%}.ars-buy{width:100%;padding:8px}
       }
 
       @media(max-height:540px) and (orientation:landscape){
-        .ars-bar{bottom:54px;gap:3px;max-width:72%;flex-wrap:nowrap}
-        .ars-items{bottom:88px;gap:3px;max-width:72%;flex-wrap:nowrap}
+        .ars-dock{bottom:46px;gap:5px;width:94vw}
+        .ars-bar,.ars-items{gap:3px;flex-wrap:nowrap;overflow-x:auto;max-width:94vw}
         .ars-w,.ars-item{padding:3px 5px}
         .ars-w-body b,.ars-item-body b{font-size:8px}
         .ars-w-body small,.ars-item-body small{font-size:7px}
