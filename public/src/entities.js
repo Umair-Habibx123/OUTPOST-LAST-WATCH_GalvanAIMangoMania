@@ -95,37 +95,70 @@ window.OLW = window.OLW || {};
     }
   }
 
+  function groundShadow(ctx, r) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.30)';
+    ctx.beginPath();
+    ctx.ellipse(0, r * 0.92, r * 0.85, r * 0.30, 0, 0, U.TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+
   function drawSilhouette(ctx, rd, walk) {
     const r = rd.r;
     const flash = rd.hitFlash > 0;
 
+    // Upright sprite that walks toward the outpost: no full rotation (that made
+    // side/top raiders look tilted). We keep them vertical, flip to face their
+    // travel direction, add a ground shadow + a gentle walk bob.
+    const vx = -Math.cos(rd.angle);                 // horizontal travel toward centre
+    const faceFlip = vx < 0 ? -1 : 1;               // art faces right by default
+    const bobY = rd.alive ? Math.sin(rd.bob) * 2.2 : 0;
+
     // Creature atlas is mixed into later waves; gameplay stats still come from rd.type.
     if (rd.creature && OLW.Assets?.ready?.('raiderCreatures')) {
       const img = OLW.Assets.images.raiderCreatures;
+      // atlas is 4 cols x 3 rows — 4 walk frames per creature tier
       const cw = img.naturalWidth / 4, ch = img.naturalHeight / 3;
       const row = rd.type === 'fast' ? 0 : (rd.type === 'tough' ? 1 : 2);
-      const frame = Math.floor(rd.bob / 1.25) % 3;
-      const size = r * (rd.type === 'tough' ? 4.7 : 4.3);
-      ctx.save(); ctx.rotate(rd.angle);
-      ctx.shadowColor = flash ? COL.torchCore : 'rgba(0,0,0,.65)'; ctx.shadowBlur = flash ? 18 : 8;
+      const frame = Math.floor(rd.bob / 1.1) % 4;
+      const size = r * (rd.type === 'tough' ? 3.8 : 3.4);   // smaller = more open field
+      groundShadow(ctx, r);
+      ctx.save();
+      ctx.translate(0, bobY);
+      ctx.scale(faceFlip, 1);
+      ctx.shadowColor = flash ? COL.torchCore : 'rgba(0,0,0,.55)'; ctx.shadowBlur = flash ? 18 : 6;
       ctx.filter = flash ? 'brightness(2.1) saturate(.35)' : 'none';
       ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(img, frame*cw, row*ch, cw, ch, -size/2, -size*.72, size, size);
-      ctx.restore(); return;
+      ctx.drawImage(img, frame * cw, row * ch, cw, ch, -size / 2, -size * 0.78, size, size);
+      ctx.restore();
+      return;
     }
 
     // Production human raider atlas: three classes x four animation frames.
     if (OLW.Assets && OLW.Assets.ready('raiders')) {
       const img = OLW.Assets.images.raiders;
-      const cw = img.naturalWidth / 4, ch = img.naturalHeight / 3;
+      // atlas is 5 cols x 3 rows: cols 0-3 are walk frames, col 4 is a portrait.
+      const cw = img.naturalWidth / 5, ch = img.naturalHeight / 3;
       const row = rd.type === 'fast' ? 0 : (rd.type === 'tough' ? 2 : 1);
-      const frame = Math.floor(rd.bob / 1.35) % 4;
-      const size = r * (rd.type === 'tough' ? 4.65 : 4.5);
-      ctx.save(); ctx.rotate(rd.angle + Math.PI/2);
-      ctx.shadowColor = flash ? COL.torchCore : 'rgba(0,0,0,.65)'; ctx.shadowBlur = flash ? 18 : 8;
-      ctx.filter = flash ? 'brightness(2.1) saturate(.35)' : 'none'; ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(img, frame*cw, row*ch, cw, ch, -size/2, -size*.70, size, size); ctx.restore();
-      if (rd.type === 'tough' && rd.alive) { const pipW=r*.42; for (let i=0;i<rd.maxHp;i++) { ctx.fillStyle=i<rd.hp?COL.raiderToughRim:'rgba(255,255,255,.16)'; ctx.fillRect((i-1.5)*(pipW+2),-r*2.65,pipW,3); } }
+      const frame = Math.floor(rd.bob / 1.1) % 4;   // only the 4 animation frames
+      const size = r * (rd.type === 'tough' ? 3.7 : 3.5);   // smaller = more open field
+      groundShadow(ctx, r);
+      ctx.save();
+      ctx.translate(0, bobY);
+      ctx.scale(faceFlip, 1);
+      ctx.shadowColor = flash ? COL.torchCore : 'rgba(0,0,0,.55)'; ctx.shadowBlur = flash ? 18 : 6;
+      ctx.filter = flash ? 'brightness(2.1) saturate(.35)' : 'none';
+      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, frame * cw, row * ch, cw, ch, -size / 2, -size * 0.80, size, size);
+      ctx.restore();
+      if (rd.type === 'tough' && rd.alive) {
+        const pipW = r * 0.42;
+        for (let i = 0; i < rd.maxHp; i++) {
+          ctx.fillStyle = i < rd.hp ? COL.raiderToughRim : 'rgba(255,255,255,.16)';
+          ctx.fillRect((i - 1.5) * (pipW + 2), -r * 2.65, pipW, 3);
+        }
+      }
       return;
     }
 

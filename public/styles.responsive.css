@@ -1,21 +1,28 @@
-/* style.responsive.css */
-/* =========================================================
-   OUTPOST RESPONSIVE VIEWPORT
-   Internal game ratio is now 16:9 — 960 x 540.
-   ========================================================= */
+/* ==========================================================================
+   OUTPOST: LAST WATCH — RESPONSIVE VIEWPORT
+
+   This file owns viewport behavior, device orientation and collision safety.
+   It intentionally does NOT skin buttons/panels.
+   ========================================================================== */
 
 html,
 body {
   width: 100%;
   height: 100%;
+
   margin: 0;
   overflow: hidden;
+
   background: #05070a;
 }
 
 body {
   overscroll-behavior: none;
 }
+
+/* --------------------------------------------------------------------------
+   FULL VIEWPORT STAGE
+   -------------------------------------------------------------------------- */
 
 #app {
   position: fixed;
@@ -61,7 +68,10 @@ body {
   isolation: isolate;
 }
 
-/* 16:9 game renderer */
+/* Logical game renderer is 960 × 540.
+   The canvas fills the viewport; unusual ratios crop slightly rather than
+   stretching the authored world. */
+
 #game {
   position: absolute;
   inset: 0;
@@ -75,16 +85,15 @@ body {
   cursor: crosshair;
 }
 
-/*
- On strange aspect ratios we allow a tiny amount of crop rather
- than stretching everything.
-*/
 @media (min-aspect-ratio: 2/1) {
   #game {
     width: auto;
     min-width: 100%;
     height: 100%;
+
     left: 50%;
+    right: auto;
+
     transform: translateX(-50%);
   }
 }
@@ -94,89 +103,160 @@ body {
     width: 100%;
     height: auto;
     min-height: 100%;
+
     top: 50%;
+    bottom: auto;
+
     transform: translateY(-50%);
   }
 }
 
-/* the canvas fills the correctly-proportioned stage — no distortion */
-#game { width: 100% !important; height: 100% !important; }
+/* --------------------------------------------------------------------------
+   FULLSCREEN BUTTON
+   -------------------------------------------------------------------------- */
 
-/* ---- fullscreen toggle ---- */
 #fs-btn {
   position: fixed;
-  top: 10px; right: 10px;
-  z-index: 60;
-  width: 34px; height: 34px;
-  display: grid; place-items: center;
+
+  top: 10px;
+  right: 10px;
+
+  z-index: 90;
+
+  width: 34px;
+  height: 34px;
+
+  display: grid;
+  place-items: center;
+
   border: 1px solid #3b3b44;
   border-radius: 8px;
-  background: rgba(10, 13, 18, .7);
+
+  background: rgba(10, 13, 18, .72);
+
   color: #e9dfcb;
+
   cursor: pointer;
+
   font-size: 15px;
   line-height: 1;
+
   pointer-events: auto;
 }
-#fs-btn:hover { border-color: #e8a13a; color: #f5c36b; }
 
-/* ---- portrait rotate prompt (this is a landscape game) ---- */
-#rotate-hint { display: none; }
+#fs-btn:hover {
+  border-color: #e8a13a;
+  color: #f5c36b;
+}
+
+/* --------------------------------------------------------------------------
+   PORTRAIT ROTATE PROMPT
+   -------------------------------------------------------------------------- */
+
+#rotate-hint {
+  display: none;
+}
+
 @media (orientation: portrait) and (max-width: 900px) {
   #rotate-hint {
+    position: fixed;
+    inset: 0;
+
+    z-index: 9998;
+
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
+
     gap: 14px;
-    position: fixed;
-    inset: 0;
-    z-index: 9998;
-    text-align: center;
+
     padding: 30px;
-    background: radial-gradient(circle at 50% 38%, #1a1f2b, #07090d 72%);
+
+    text-align: center;
+
+    background:
+      radial-gradient(
+        circle at 50% 38%,
+        #1a1f2b,
+        #07090d 72%
+      );
+
     color: #e9dfcb;
   }
-  #rotate-hint .rot-ico { font-size: 54px; animation: rot-wig 1.9s ease-in-out infinite; }
-  #rotate-hint b { font-size: 19px; letter-spacing: .5px; }
-  #rotate-hint small { color: #9e988b; max-width: 26ch; font-size: 13px; line-height: 1.55; }
-  #fs-btn { display: none; }
+
+  #rotate-hint .rot-ico {
+    font-size: 54px;
+    animation: rot-wig 1.9s ease-in-out infinite;
+  }
+
+  #rotate-hint b {
+    font-size: 19px;
+    letter-spacing: .5px;
+  }
+
+  #rotate-hint small {
+    max-width: 26ch;
+
+    color: #9e988b;
+
+    font-size: 13px;
+    line-height: 1.55;
+  }
+
+  #fs-btn {
+    display: none;
+  }
 }
-@keyframes rot-wig { 0%, 100% { transform: rotate(-12deg); } 50% { transform: rotate(12deg); } }
 
-/* ---- small-screen tightening for injected UIs ---- */
-@media (max-width: 520px) {
-  .ars-shop-panel { padding: 16px; }
-  .ars-w { padding: 5px 7px; }
-  .ars-coins { top: 6px; }
-  .map-picker { margin-top: 8px; }
-}
-@media (max-height: 430px) {
-  /* short landscape (phones held sideways): pull HUD in tight */
-  .volley-wrap { bottom: 8px; }
+@keyframes rot-wig {
+  0%,
+  100% {
+    transform: rotate(-12deg);
+  }
+
+  50% {
+    transform: rotate(12deg);
+  }
 }
 
+/* --------------------------------------------------------------------------
+   GAMEPLAY BOTTOM CONTROL ZONE
 
-/* ==========================================================================
-   HUD / ARSENAL COLLISION SAFETY
-   ========================================================================== */
+   The item row sits above the weapon row.
+   The dock stays clear of Quit / Volley / Sound / Pause.
+   -------------------------------------------------------------------------- */
 
-/* Reserve a clean bottom gameplay control zone. */
 .ars-dock {
-  bottom: max(62px, env(safe-area-inset-bottom, 0px) + 58px) !important;
-  width: min(900px, calc(100vw - 150px)) !important;
+  bottom:
+    max(
+      62px,
+      calc(env(safe-area-inset-bottom, 0px) + 58px)
+    ) !important;
+
+  width:
+    min(
+      900px,
+      calc(100vw - 170px)
+    ) !important;
+
   max-height: 118px;
+
   overflow: visible;
 }
 
 .ars-bar,
 .ars-items {
   max-width: 100%;
+
   flex-wrap: nowrap !important;
+
+  justify-content: center;
+
   overflow-x: auto;
   overflow-y: hidden;
+
   scrollbar-width: none;
-  justify-content: center;
 }
 
 .ars-bar::-webkit-scrollbar,
@@ -190,43 +270,84 @@ body {
 }
 
 .volley-wrap {
-  bottom: 10px !important;
+  bottom:
+    max(
+      10px,
+      env(safe-area-inset-bottom, 0px)
+    ) !important;
 }
 
 .ars-quit {
   left: 12px !important;
-  bottom: 12px !important;
+  bottom:
+    max(
+      12px,
+      env(safe-area-inset-bottom, 0px)
+    ) !important;
 }
 
 #pause-btn {
   right: 12px !important;
-  bottom: 12px !important;
+  bottom:
+    max(
+      12px,
+      env(safe-area-inset-bottom, 0px)
+    ) !important;
 }
 
 .mute-btn {
   right: 54px !important;
-  bottom: 12px !important;
+  bottom:
+    max(
+      12px,
+      env(safe-area-inset-bottom, 0px)
+    ) !important;
 }
+
+/* --------------------------------------------------------------------------
+   TABLET / SMALL LAPTOP
+   -------------------------------------------------------------------------- */
 
 @media (max-width: 900px) {
   .ars-dock {
-    width: calc(100vw - 118px) !important;
+    width:
+      calc(100vw - 130px) !important;
   }
 
   .ars-w-body b,
   .ars-item-body b {
     max-width: 72px;
+
     overflow: hidden;
+
     white-space: nowrap;
     text-overflow: ellipsis;
   }
 }
 
+/* --------------------------------------------------------------------------
+   SHORT LANDSCAPE
+   -------------------------------------------------------------------------- */
+
+@media (max-height: 650px) and (orientation: landscape) {
+  .modern-title-layout {
+    justify-content: center;
+  }
+
+  .hero-tip {
+    display: none;
+  }
+}
+
 @media (max-height: 600px) and (orientation: landscape) {
   .ars-dock {
-    bottom: 50px !important;
-    width: calc(100vw - 140px) !important;
-    max-height: 86px;
+    bottom: 48px !important;
+
+    width:
+      calc(100vw - 150px) !important;
+
+    max-height: 82px;
+
     gap: 3px !important;
   }
 
@@ -237,11 +358,117 @@ body {
 
   .ars-w,
   .ars-item {
-    min-height: 31px;
+    min-height: 30px;
   }
 
   .ars-w-body b,
   .ars-item-body b {
     font-size: 8px !important;
+  }
+
+  .ars-w-body small,
+  .ars-item-body small {
+    font-size: 7px !important;
+  }
+}
+
+@media (max-height: 540px) and (orientation: landscape) {
+  .volley-wrap {
+    bottom: 8px !important;
+  }
+
+  #pause-btn {
+    right: 9px !important;
+    bottom: 8px !important;
+  }
+
+  .mute-btn {
+    right: 47px !important;
+    bottom: 8px !important;
+  }
+
+  .ars-quit {
+    left: 9px !important;
+    bottom: 8px !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   MODALS ON MOBILE
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 600px) {
+  .screen {
+    padding: 0;
+  }
+
+  .screen:not(.title-screen) .panel {
+    width: 100vw;
+    height: 100dvh;
+
+    max-width: none;
+    max-height: none;
+
+    border: 0;
+    border-radius: 0;
+
+    padding:
+      52px 16px
+      calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+  .screen {
+    padding: 5px;
+  }
+
+  .screen:not(.title-screen) .panel {
+    width: min(860px, 98vw);
+    max-height: calc(100dvh - 10px);
+
+    padding: 36px 16px 12px;
+  }
+
+  .panel-title {
+    margin: 3px 0 6px;
+    font-size: 24px;
+  }
+
+  .panel-copy {
+    margin-bottom: 9px;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   SMALL TITLE SCREEN
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 650px) {
+  .event-brandbar {
+    top: 8px;
+    left: 10px;
+    right: 10px;
+  }
+
+  .event-brand {
+    height: 22px;
+  }
+
+  .event-build-label {
+    font-size: 7px;
+    letter-spacing: 1.4px;
+  }
+
+  .modern-title-layout {
+    width: 72vw;
+    padding-left: 16px;
+  }
+
+  .warden-portrait {
+    right: -10%;
+    width: 55vw;
+    height: 65%;
+    opacity: .30;
   }
 }

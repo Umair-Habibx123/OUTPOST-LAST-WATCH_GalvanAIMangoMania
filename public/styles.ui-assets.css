@@ -1,190 +1,260 @@
-/* OUTPOST: LAST WATCH — ASSET-DRIVEN UI LIBRARY
-   Paths match assets/art/ui/ in the redesigned asset archive. */
+/* ============================================================================
+   OUTPOST — ASSET-DRIVEN UI SKIN   (art in public/assets/art/ui/)
+   Maps the hand-made plates/frames/medals onto the existing markup. Every rule
+   layers a fallback colour/gradient UNDER the image, so a missing file still
+   looks intentional. Loaded last, so it wins the cascade.
+   ============================================================================ */
 
 :root {
-  --ui-frame: url("assets/art/ui/frame.png");
-  --ui-panel: url("assets/art/ui/panel-bg.webp");
-  --ui-banner: url("assets/art/ui/banner.png");
-  --ui-divider: url("assets/art/ui/divider.png");
-  --ui-button: url("assets/art/ui/btn.png");
-  --ui-button-secondary: url("assets/art/ui/btn-secondary.png");
-  --ui-tile: url("assets/art/ui/tile.png");
-  --ui-tile-selected: url("assets/art/ui/tile-selected.png");
+  --ui: "assets/art/ui";
 }
 
+/* ---------------------------------------------------------------- PANELS ---- */
 .panel,
 .ars-shop-panel,
 .set-panel {
   position: relative;
-  background-image:
-    linear-gradient(165deg, rgba(20, 19, 18, .93), rgba(7, 9, 13, .985)),
-    var(--ui-panel);
-  background-size: cover;
-  background-position: center;
+  border: 0 !important;
+  background:
+    linear-gradient(165deg, rgba(28, 32, 38, 0.86), rgba(12, 15, 20, 0.92)),
+    url("assets/art/ui/panel-bg.webp") center / cover no-repeat !important;
+  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.6) !important;
 }
 
+/* ornate frame (stretched over the panel edges; transparent centre) */
 .panel::after,
 .ars-shop-panel::after,
 .set-panel::after {
   content: "";
   position: absolute;
-  inset: -11px;
-  background: var(--ui-frame) center / 100% 100% no-repeat;
-  pointer-events: none;
-  z-index: 3;
-}
-
-.panel::before {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: -31px;
-  width: min(310px, 55%);
-  height: 64px;
-  transform: translateX(-50%);
-  background: var(--ui-banner) center / contain no-repeat;
+  inset: -10px;
+  background: url("assets/art/ui/frame.png") center / 100% 100% no-repeat;
   pointer-events: none;
   z-index: 4;
 }
-
+/* keep content above the frame */
 .panel > *,
 .ars-shop-panel > *,
-.set-panel > * {
-  position: relative;
-  z-index: 5;
-}
+.set-panel > * { position: relative; z-index: 5; }
 
+/* ------------------------------------------------------- TITLES / KICKERS --- */
+.panel-title {
+  position: relative;
+  padding: 10px 24px;
+  background: url("assets/art/ui/header-plate.png") center / 100% 100% no-repeat;
+}
 .panel-title::after {
   content: "";
   display: block;
-  width: min(360px, 82%);
-  height: 13px;
-  margin: 7px auto 0;
-  background: var(--ui-divider) center / contain no-repeat;
+  height: 14px;
+  margin: 6px auto 0;
+  width: min(340px, 86%);
+  background: url("assets/art/ui/divider.png") center / contain no-repeat;
+}
+.panel-kicker {
+  display: inline-block;
+  padding: 6px 26px;
+  background: url("assets/art/ui/banner.png") center / 100% 100% no-repeat;
+  color: #f2d9a6 !important;
 }
 
-/* Buttons retain live text and accessibility — art is only the skin. */
-.primary-btn {
-  position: relative;
-  isolation: isolate;
+/* -------------------------------------------------------------- BUTTONS ----- */
+.primary-btn,
+.hero-play {
   border: 0 !important;
-  color: #f4dfb2 !important;
-  text-shadow: 0 2px 3px #1c0d05;
-  background-color: transparent !important;
-  background-image: var(--ui-button) !important;
-  background-size: 100% 100% !important;
-  background-repeat: no-repeat !important;
-  background-position: center !important;
   box-shadow: none !important;
+  background:
+    url("assets/art/ui/btn.png") center / 100% 100% no-repeat,
+    linear-gradient(180deg, #f5c36b, #d5892a) !important;
+  color: #2a1c0b !important;
+  text-shadow: 0 1px 0 rgba(255, 235, 190, 0.35);
+}
+.primary-btn:active,
+.hero-play:active { filter: brightness(0.94); transform: translateY(1px); }
+
+.secondary-btn {
+  border: 0 !important;
+  background:
+    url("assets/art/ui/btn-secondary.png") center / 100% 100% no-repeat,
+    linear-gradient(180deg, rgba(60, 66, 78, 0.9), rgba(28, 32, 40, 0.95)) !important;
+  color: #e9dfcb !important;
+}
+.primary-btn.small,
+.ars-shop-close,
+.set-close { background-size: 100% 100%; }
+
+/* small square close buttons */
+.ars-shop-x {
+  border: 0 !important;
+  background: url("assets/art/ui/close.png") center / contain no-repeat !important;
+  color: transparent !important;
+  width: 38px !important;
+  height: 38px !important;
 }
 
-.primary-btn:hover {
-  filter: brightness(1.12) saturate(1.08);
-}
-
-.secondary-btn,
-.room-back-btn {
-  color: #e8ddc7;
-  background: transparent var(--ui-button-secondary) center / 100% 100% no-repeat;
-  border: 0;
-}
-
+/* ---------------------------------------------------- TITLE MENU TILES ------ */
 .secondary-tile {
-  background: transparent var(--ui-tile) center / 100% 100% no-repeat !important;
   border: 0 !important;
+  background:
+    url("assets/art/ui/tile.png") center / 100% 100% no-repeat,
+    linear-gradient(180deg, rgba(40, 45, 55, 0.9), rgba(20, 24, 30, 0.95)) !important;
+  color: #e9dfcb !important;
+  transition: filter .12s ease, transform .12s ease;
+}
+.secondary-tile:hover {
+  background-image:
+    url("assets/art/ui/tile-selected.png"),
+    linear-gradient(180deg, rgba(60, 48, 26, 0.95), rgba(30, 24, 14, 0.98)) !important;
+  transform: translateY(-2px);
 }
 
-.secondary-tile:hover,
-.secondary-tile:focus-visible {
-  background-image: var(--ui-tile-selected) !important;
-}
-
-.room-input {
-  background: transparent url("assets/art/ui/input.png") center / 100% 100% no-repeat !important;
-  border: 0 !important;
-}
-
-.room-select {
-  background-image: url("assets/art/ui/select.png") !important;
-}
-
+/* the big 2-player card + mode toggle cards */
+.menu-action-card,
 .mode-option {
-  background: transparent url("assets/art/ui/mode-card.png") center / 100% 100% no-repeat !important;
   border: 0 !important;
+  background:
+    url("assets/art/ui/mode-card.png") center / 100% 100% no-repeat,
+    linear-gradient(180deg, rgba(40, 45, 55, 0.9), rgba(20, 24, 30, 0.95)) !important;
+  color: #e9dfcb !important;
+}
+.mode-option.selected,
+.menu-action-card:hover {
+  background-image:
+    url("assets/art/ui/mode-card-selected.png"),
+    linear-gradient(180deg, rgba(60, 48, 26, 0.95), rgba(30, 24, 14, 0.98)) !important;
 }
 
-.mode-option.selected {
-  background-image: url("assets/art/ui/mode-card-selected.png") !important;
-}
-
+/* ------------------------------------------------- SHARED-WATCH LOBBY ------- */
 .player-card {
-  background: transparent url("assets/art/ui/player-card.png") center / 100% 100% no-repeat !important;
   border: 0 !important;
+  background: url("assets/art/ui/player-card.png") center / 100% 100% no-repeat !important;
 }
-
 .player-card.waiting {
   background-image: url("assets/art/ui/player-card-waiting.png") !important;
 }
-
-.game-qr {
-  padding: 21px !important;
+#game-qr {
+  padding: 26px !important;
   background: url("assets/art/ui/qr-frame.png") center / 100% 100% no-repeat !important;
-  box-shadow: none !important;
+  border: 0 !important;
 }
 
+/* --------------------------------------------------------- INPUTS ---------- */
+#name-input,
+.room-input {
+  border: 0 !important;
+  background: url("assets/art/ui/input.png") center / 100% 100% no-repeat !important;
+  color: #f0e6d2 !important;
+}
+.room-select {
+  background: url("assets/art/ui/select.png") center / 100% 100% no-repeat !important;
+}
+
+/* -------------------------------------------------- GAME-OVER RESULTS ------- */
 .result-grid > div {
+  border: 0 !important;
   background: url("assets/art/ui/result-card.png") center / 100% 100% no-repeat !important;
-  border: 0 !important;
 }
-
 .rank-callout {
+  border: 0 !important;
   background: url("assets/art/ui/rank-callout.png") center / 100% 100% no-repeat !important;
-  border: 0 !important;
+  color: #f2d9a6 !important;
 }
 
-.score-row.top1 .rank {
-  background: url("assets/art/ui/medal1.png") center / contain no-repeat;
-}
+/* ---------------------------------------------------- LEADERBOARD ---------- */
+.score-row.top1 .rank { background: url("assets/art/ui/medal1.png") center / contain no-repeat; }
+.score-row.top2 .rank { background: url("assets/art/ui/medal2.png") center / contain no-repeat; }
+.score-row.top3 .rank { background: url("assets/art/ui/medal3.png") center / contain no-repeat; }
 
-.score-row.top2 .rank {
-  background: url("assets/art/ui/medal2.png") center / contain no-repeat;
-}
-
-.score-row.top3 .rank {
-  background: url("assets/art/ui/medal3.png") center / contain no-repeat;
-}
-
-.ars-shop-x,
-.modal-close {
-  background: url("assets/art/ui/close.png") center / 100% 100% no-repeat !important;
-  border: 0 !important;
+/* ------------------------------------------------------ ARROW ICONS -------- */
+/* uses assets/art/ui/left.png + right.png */
+.hero-arrow {
   color: transparent !important;
+  display: inline-block;
+  width: 34px; height: 22px;
+  background: url("assets/art/ui/right.png") center / contain no-repeat;
+}
+[data-back]::before,
+.room-back-btn::before,
+.back-btn::before {
+  content: "";
+  display: inline-block;
+  width: 26px; height: 18px;
+  margin-right: 8px;
+  vertical-align: -3px;
+  background: url("assets/art/ui/left.png") center / contain no-repeat;
 }
 
-.hero-play {
-  background-image: url("assets/art/ui/title-play.png") !important;
-  background-size: 100% 100% !important;
+/* --------------------------------------------- READABLE TITLE / CARD TEXT --- */
+/* the hero + map-card text was tiny; bump it (!important beats runtime CSS) */
+.hero-kicker { font-size: 13px !important; letter-spacing: 3px !important; }
+.tagline { font-size: clamp(16px, 2.1vw, 21px) !important; }
+.hero-meta span { font-size: 12.5px !important; padding: 6px 12px !important; }
+.hero-tip { font-size: 13px !important; line-height: 1.5 !important; }
+.hero-tip .hero-tip-key { font-size: 11px !important; }
+.secondary-tile { font-size: 13.5px !important; }
+.secondary-tile small { font-size: 11px !important; }
+.menu-action-card small { font-size: 11px !important; }
+.menu-action-card strong { font-size: 16px !important; }
+.map-card { height: 90px !important; }
+.map-card strong { font-size: 14px !important; }
+.map-card small { font-size: 11px !important; }
+.map-card-overlay { padding: 10px !important; }
+.map-card.selected::after { font-size: 9px !important; }
+
+/* ------------------------------------------------ BIGGER TITLE EMBLEM ------- */
+.game-emblem-wrap {
+  width: min(560px, 52vw) !important;
+  height: clamp(150px, 26vh, 240px) !important;
+  margin: 8px 0 10px !important;
+}
+.game-emblem {
+  height: 100% !important;
+  width: auto !important;
+  max-width: 100% !important;
+  max-height: none !important;
+  object-position: left center;
 }
 
-/* Stronger, game-like panel edge treatment without covering content. */
-.panel,
-.ars-shop-panel,
-.set-panel {
-  border: 1px solid rgba(202, 151, 78, .24) !important;
-  box-shadow:
-    0 28px 80px rgba(0, 0, 0, .72),
-    inset 0 0 45px rgba(0, 0, 0, .38);
+/* ------------------------------------------------ MORE ART PUT TO WORK ------ */
+/* Armory shop header uses the illustrated ARMORY banner (armory.png) */
+.ars-shop-title {
+  color: transparent !important;
+  background: url("assets/art/ui/armory.png") left center / auto 100% no-repeat;
+  min-height: 58px;
+  min-width: 220px;
+}
+/* small text buttons get the small-action plate */
+.link-btn {
+  border: 0 !important;
+  padding: 9px 18px !important;
+  background: url("assets/art/ui/small-action.png") center / 100% 100% no-repeat !important;
+  color: #e9dfcb !important;
+  text-decoration: none !important;
+}
+.link-btn.danger { color: #f0b0a2 !important; }
+/* bolted corner ornaments frame the battlefield cards */
+.map-card { position: relative; }
+.map-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  background:
+    url("assets/art/ui/corner-tl.png") left top / 24px no-repeat,
+    url("assets/art/ui/corner-tr.png") right top / 24px no-repeat,
+    url("assets/art/ui/corner-bl.png") left bottom / 24px no-repeat,
+    url("assets/art/ui/corner-br.png") right bottom / 24px no-repeat;
 }
 
-@media (max-width: 650px) {
-  .panel::after,
-  .ars-shop-panel::after,
-  .set-panel::after {
-    inset: -4px;
-  }
-
-  .panel::before {
-    top: -18px;
-    height: 43px;
-  }
+/* ---------------------------------------------- TITLE LEFT-COLUMN SPACING --- */
+/* breathing room between each hero row (the user asked for more spacing) */
+.modern-title-layout {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(12px, 2vh, 22px);
 }
+.modern-title-layout > * { margin-top: 0 !important; margin-bottom: 0 !important; }
+.modern-actions { gap: 12px; }
+.secondary-actions { gap: 12px; margin-top: 4px; }
+.hero-meta { gap: 10px; }

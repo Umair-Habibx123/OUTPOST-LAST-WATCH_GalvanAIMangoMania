@@ -39,7 +39,7 @@ OLW.Device = (function () {
 
   function defaults() {
     return {
-      stash: 0, unlocked: ['sidearm'], ammo: {}, items: {}, upgrades: {},
+      stash: 0, unlocked: ['sidearm'], ammo: {}, items: {}, upgrades: {}, weaponLevels: {},
       xp: 0, level: 1, settings: {},
       loadout: 'sidearm', map: 'frontier', bestScore: 0, name: '',
     };

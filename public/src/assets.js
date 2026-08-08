@@ -44,19 +44,20 @@ OLW.Assets = (function () {
       'assets/art/characters/backup-guard.png'
     ],
 
+    // Prefer the true 16:9 (-960) variants so the map fills 960x540 without stretch.
     mapFrontier: [
-      'assets/art/maps/map-frontier.webp',
-      'assets/art/maps/map-frontier-960.webp'
+      'assets/art/maps/map-frontier-960.webp',
+      'assets/art/maps/map-frontier.webp'
     ],
 
     mapOrchard: [
-      'assets/art/maps/map-orchard.webp',
-      'assets/art/maps/map-orchard-960.webp'
+      'assets/art/maps/map-orchard-960.webp',
+      'assets/art/maps/map-orchard.webp'
     ],
 
     mapFrost: [
-      'assets/art/maps/map-frost.webp',
-      'assets/art/maps/map-frost-960.webp'
+      'assets/art/maps/map-frost-960.webp',
+      'assets/art/maps/map-frost.webp'
     ]
   };
 

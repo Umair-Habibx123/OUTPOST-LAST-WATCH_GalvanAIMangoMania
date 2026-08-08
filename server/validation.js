@@ -137,7 +137,7 @@ export const profileSyncSchema = z.object({
 // A single validated purchase — the server decides if it's affordable/allowed.
 export const purchaseSchema = z.object({
   deviceId: z.string().trim().min(1).max(128),
-  kind: z.enum(['unlock', 'ammo', 'item', 'upgrade']),
+  kind: z.enum(['unlock', 'ammo', 'item', 'upgrade', 'weaponUpgrade']),
   id: z.string().trim().min(1).max(40)
 });
 

@@ -3,13 +3,15 @@
    display, but every coin/unlock/ammo/upgrade change is validated HERE, so a
    tampered browser can't grant itself stash, unlocks, or levels. */
 
+// minLevel gates unlocks: higher-tier weapons only become purchasable as the
+// player's level rises (not everything is available at level 1).
 export const WEAPONS = {
-  sidearm:    { starter: true, unlockCost: 0 },
-  repeater:   { unlockCost: 220, ammoBase: 40, ammoPerLevel: 8, clip: 20, clipCost: 40 },
-  scattergun: { unlockCost: 400, ammoBase: 24, ammoPerLevel: 5, clip: 10, clipCost: 45 },
-  cannon:     { unlockCost: 650, ammoBase: 12, ammoPerLevel: 3, clip: 5,  clipCost: 60 },
-  mortar:     { unlockCost: 900, ammoBase: 8,  ammoPerLevel: 2, clip: 4,  clipCost: 80 },
-  tesla:      { unlockCost: 1100, ammoBase: 30, ammoPerLevel: 6, clip: 12, clipCost: 55 },
+  sidearm:    { starter: true, unlockCost: 0, minLevel: 1 },
+  repeater:   { unlockCost: 220, ammoBase: 40, ammoPerLevel: 8, clip: 20, clipCost: 40, minLevel: 1 },
+  scattergun: { unlockCost: 400, ammoBase: 24, ammoPerLevel: 5, clip: 10, clipCost: 45, minLevel: 2 },
+  cannon:     { unlockCost: 650, ammoBase: 12, ammoPerLevel: 3, clip: 5,  clipCost: 60, minLevel: 4 },
+  mortar:     { unlockCost: 900, ammoBase: 8,  ammoPerLevel: 2, clip: 4,  clipCost: 80, minLevel: 6 },
+  tesla:      { unlockCost: 1100, ammoBase: 30, ammoPerLevel: 6, clip: 12, clipCost: 55, minLevel: 8 },
 };
 
 export const CONSUMABLES = {
@@ -21,9 +23,18 @@ export const CONSUMABLES = {
 
 export const UPGRADES = {
   armour:     { max: 4, cost: [200, 400, 700, 1100] },
+  reload:     { max: 4, cost: [180, 360, 620, 980] },   // faster fire, all guns
+  fieldKit:   { max: 3, cost: [220, 460, 760] },        // stronger supplies/allies
+  wallMend:   { max: 3, cost: [200, 420, 700] },        // bigger perfect-wave repair
   coinGain:   { max: 3, cost: [150, 300, 500] },
   startCoins: { max: 3, cost: [120, 240, 400] },
 };
+
+// Per-weapon power levels — more level, more impact.
+export const WEAPON_UPGRADE = { max: 5, base: 130, growth: 1.55 };
+export function weaponUpgradeCost(lvl) {
+  return Math.round(WEAPON_UPGRADE.base * Math.pow(WEAPON_UPGRADE.growth, lvl));
+}
 
 const MAX_LEVEL = 20;
 const COIN = { kill: 8, perfect: 50, mango: 30 };
@@ -37,7 +48,7 @@ const CAPS = {
 
 export function defaults() {
   return {
-    stash: 0, unlocked: ['sidearm'], ammo: {}, items: {}, upgrades: {},
+    stash: 0, unlocked: ['sidearm'], ammo: {}, items: {}, upgrades: {}, weaponLevels: {},
     xp: 0, level: 1, settings: {},
     loadout: 'sidearm', map: 'frontier', bestScore: 0, name: '',
   };
@@ -73,6 +84,7 @@ export function sanitize(p) {
   out.ammo = (out.ammo && typeof out.ammo === 'object') ? out.ammo : {};
   out.items = (out.items && typeof out.items === 'object') ? out.items : {};
   out.upgrades = (out.upgrades && typeof out.upgrades === 'object') ? out.upgrades : {};
+  out.weaponLevels = (out.weaponLevels && typeof out.weaponLevels === 'object') ? out.weaponLevels : {};
   out.level = levelFromXp(out.xp);
   return out;
 }
@@ -88,6 +100,7 @@ export function applyPurchase(profile, kind, id) {
     const w = WEAPONS[id];
     if (!w || w.starter) return { ok: false, message: 'Not purchasable.' };
     if (p.unlocked.includes(id)) return { ok: false, message: 'Already unlocked.' };
+    if (level < (w.minLevel || 1)) return { ok: false, message: `Reach level ${w.minLevel}.` };
     if (p.stash < w.unlockCost) return { ok: false, message: 'Not enough coins.' };
     p.stash -= w.unlockCost;
     p.unlocked.push(id);
@@ -118,6 +131,17 @@ export function applyPurchase(profile, kind, id) {
     if (p.stash < cost) return { ok: false, message: 'Not enough coins.' };
     p.stash -= cost;
     p.upgrades[id] = lvl + 1;
+  } else if (kind === 'weaponUpgrade') {
+    const w = WEAPONS[id];
+    if (!w) return { ok: false, message: 'Unknown weapon.' };
+    if (!p.unlocked.includes(id)) return { ok: false, message: 'Unlock it first.' };
+    const lvl = (p.weaponLevels && p.weaponLevels[id]) || 0;
+    if (lvl >= WEAPON_UPGRADE.max) return { ok: false, message: 'Max level.' };
+    const cost = weaponUpgradeCost(lvl);
+    if (p.stash < cost) return { ok: false, message: 'Not enough coins.' };
+    p.stash -= cost;
+    p.weaponLevels = p.weaponLevels || {};
+    p.weaponLevels[id] = lvl + 1;
   } else {
     return { ok: false, message: 'Unknown purchase kind.' };
   }

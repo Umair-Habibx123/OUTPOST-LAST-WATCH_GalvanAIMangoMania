@@ -1,132 +1,85 @@
 # Outpost: Last Watch
 
-A web-based wave-defense arcade game built for **GalvanAI · Mango Mania · Innovista (Aug 13)**.
+A web-based **wave-survival defense game** built for **GalvanAI · Mango Mania · Innovista (Aug 13)**.
 
-You're a lone guard holding a border watchtower overnight. Bandits converge from
-every direction across open dark terrain. Aim and strike them down before they
-reach the wall — every raider that gets through chips the wall's **Integrity**,
-and that damage **carries between waves and never fully heals**. Waves escalate
-in count, speed, and number of directions, with a harder **Raid** surge every 5th
-wave. Survive as long as you can; clean (no-damage) waves grant a small repair and
-a bonus. Score feeds a **leaderboard** that can be reset per event day.
+You hold a lone border watchtower overnight while raiders — and later beast-creatures — converge from every direction. Aim and fire to stop them before they breach the wall. **Wall Integrity carries between waves and never fully heals**, so damage compounds; waves escalate in count, speed, direction and difficulty, with a harder **Raid** surge every 5th wave. Survive as long as you can; your score feeds a shared **leaderboard (The Watch Roll)** that resets each event day.
 
-**Mango element:** a **mango supply cart** 🥭 crosses the field now and then —
-strike it to grab a repair. It's the *only* thing that mends the wall, so the
-mango is your lifeline, not set dressing.
-
-Two skill layers reward good play:
-
-- **Combo streak** — rapid clean kills raise a points multiplier (up to ×5). A
-  miss, or letting a raider reach the wall, breaks it.
-- **Signal Volley** — kills charge a meter; when full, press **Q** (or tap the
-  button) to fire a shockwave that clears every raider near the tower.
+**Mango element:** a **mango supply cart** crosses the field and is the only in-run repair — mango = lifeline, not set-dressing.
 
 ---
 
-## Run it locally
+## Tech stack
 
-It's plain HTML/CSS/JS — no build step, no dependencies. Any static server works:
+Full-stack, no build step for the client:
+
+- **Client** — vanilla JS + HTML Canvas in `public/` (`public/src/*.js`), plus illustrated art in `public/assets/`.
+- **Server** — Node **Express** (`server.js`, `server/*.js`) serving `public/` + a REST API, with **Socket.IO** for realtime 2-player rooms.
+- **Database** — **Neon Postgres** (`@neondatabase/serverless`). Schema in `database/schema.sql`, applied by `database/setup.js`.
+
+## Run it
 
 ```bash
-python -m http.server 8000
+npm install
+# create .env with your Neon connection string:
+#   DATABASE_URL=postgres://...
+#   (optional) PORT=3000, ADMIN_SECRET=..., WS_GRACE_MS=20000
+npm run db:setup     # create/upgrade tables (idempotent)
+npm start            # or: npm run dev  (node --watch)
 ```
 
-Then open <http://localhost:8000>. (Opening `index.html` directly via `file://`
-also works because scripts are loaded as classic scripts, not ES modules.)
+Then open **http://localhost:3000**.
 
-## Deploy to itch.io
+> ⚠️ Always run through the server URL. Opening `public/index.html` directly (`file://`) has no backend, so leaderboard / profile / economy / multiplayer won't work.
 
-1. Zip the project so `index.html` sits at the **root of the zip** (not inside a
-   subfolder):
-   ```
-   index.html
-   styles.css
-   src/...
-   ```
-2. On itch.io: create a new project → **Kind of project: HTML** → upload the zip →
-   tick **"This file will be played in the browser"**.
-3. Set the embed/viewport size to **960 × 600** and enable **Fullscreen button**.
-4. Mobile players can play directly (touch = aim + tap to strike).
+## Core gameplay
 
-Any static host works too (GitHub Pages, Netlify, Vercel) — just serve the folder.
+- **Aim & fire** — mouse aims; **left-click or Space** fires. Strike raiders before they reach the wall.
+- **Combo streak** (×5) for rapid clean kills; **Signal Volley** (Q) shockwave when charged.
+- **Escalating waves** from all directions; **Raid** surge every 5th wave; beast-creature raiders mix in from wave 3.
+- **Three battlefields** (Dust Frontier / Burnt Orchard / Frostwatch Ridge) with distinct colour-grade + a signature hazard each.
 
----
+## Economy & progression (server-authoritative)
 
-## Tuning for event day
+All coins/unlocks/ammo/upgrades live in **Neon**, keyed by a per-device id. The browser stores **only** that id — editing anything client-side grants nothing. Purchases and run rewards are validated + capped in `server/economy.js`.
 
-All balance lives in [`src/config.js`](src/config.js) (`OLW.CONFIG`). Common knobs:
+- **Coins** earned per kill / perfect wave / mango cart; leftover banks to a persistent **stash**.
+- **Player level** (XP across runs) raises ammo caps, item limits, and item power.
+- **Weapons** — start with the infinite **Sidearm**; buy others as one-time unlocks, then buy **limited ammo** per gun (consumed per run), and **upgrade each weapon's level (×5)** for more impact:
+  - Repeater (rapid), Scattergun (spread), Siege Cannon (splash), **Mortar (wipes its whole blast radius)**, Tesla Coil (chain).
+  - Each weapon has a distinct **muzzle + impact** (pistol tick → mortar BOOM).
+- **Field Kit** consumables (used in-run, keys Z X C V): Supply Line (repair), Backup Team, War Beast, Dragon Strike — each an **on-screen ally with its own health meter** that fights raiders near the wall.
+- **Permanent upgrades** (Armory): Warden Armour, Rapid Reload, Field Kit, Wall Mender, Coin Runners, War Chest.
 
-| Setting | Meaning |
-| --- | --- |
-| `INTEGRITY_START` / `INTEGRITY_MAX` | Wall health |
-| `PERFECT_WAVE_REPAIR` / `MANGO_REPAIR` | How much the wall can mend (kept small on purpose) |
-| `RAID_EVERY` | Every Nth wave is a harder surge |
-| `MANGO_CHANCE` | Per-wave chance a supply cart appears |
-| `STRIKE_COOLDOWN` | Seconds between strikes (caps your effective DPS) |
-| `AIM_ASSIST_RADIUS` | Forgiveness on aim (bigger = easier, touch-friendly) |
+## Controls & accessibility (Settings)
 
-Wave escalation (counts, speed, directions, enemy mix) lives in
-[`src/waves.js`](src/waves.js) → `plan(wave)`.
+Device mouse/keyboard is always active as the fallback. Selectable **control modes**: Device, **AI aim-assist**, **Hand gesture** (webcam), **Face + blink** (webcam), **Voice** (mic). Also: sound, reticle style, screen-shake, and **Player-2 backup** (if the phone controller drops mid-match, the host drives P2 via AI auto-defend / keyboard).
 
-**Setting the "beat this to win a mango" target:** playtest with your own team
-first — a focused ~2-minute run currently lands in the **~3,000–4,000** range and a
-strong run pushes past **6,000**. Pick a target your booth staff can consistently
-hit but that takes real attention, then post it at the kiosk.
+## Multiplayer (Shared Watch)
+
+Create a room → a **QR code / room code** lets a second player join **on their phone as a controller** (Play Together or Play Against). Realtime via Socket.IO with a **persistent client id + 20s reconnect grace**, so a refresh rejoins the same seat instead of dropping.
 
 ## Leaderboard
 
-Ships with a **localStorage** provider (see [`src/leaderboard.js`](src/leaderboard.js))
-so it works offline with zero backend — perfect for a **single-kiosk** setup where
-everyone plays on the same machine.
+`The Watch Roll` — per-event-day top scores from Neon (`/api/leaderboard`). Host reset via `DELETE /api/admin/leaderboard` with the `x-admin-secret` header.
 
-- Reset between event sessions with the **"Reset (event host)"** button on the
-  Leaderboard screen.
-- For **cross-device** scoring (attendees on their own phones), the provider API
-  (`submit` / `top` / `clear`) is intentionally tiny — drop in a remote provider
-  on event day via `OLW.Leaderboard.setProvider(...)`. A ~30-line serverless
-  endpoint or a Supabase table is enough. Ask and I'll wire one up.
-
----
-
-## Project structure
+## Project layout
 
 ```
-index.html          markup: canvas, HUD, and all screens
-styles.css          cohesive dusty desert-night UI theme
-src/config.js       tuning + color palette
-src/utils.js        math/helpers
-src/audio.js        procedural WebAudio SFX (no audio files)
-src/leaderboard.js  score store (local, pluggable)
-src/entities.js     raiders, mango cart, particles/floaters
-src/waves.js        wave director + escalation
-src/render.js       ground, outpost/watchfire, reticle, vignette
-src/game.js         state machine, loop, collisions, scoring
-src/main.js         DOM wiring, input, screen flow
+server.js                 Express + Socket.IO entry
+server/                   database.js · rooms.js · socket.js · validation.js · economy.js
+database/                 schema.sql · setup.js
+public/index.html         markup: canvas, HUD, all screens
+public/styles*.css        base · responsive · ui-assets (asset-driven skin)
+public/src/               config, utils, assets, audio, device, leaderboard, multiplayer,
+                          entities, waves, render, game, arsenal, maps, settings,
+                          backup-controls, controls-ai, controller, main
+public/assets/            art/characters · art/maps · art/ui · art/icons · branding
 ```
 
-## Controls
+## Deploy
 
-- **Mouse / touch:** move to aim, click / tap to strike.
-- **Space:** strike at current aim.
-- **Q** (or the on-screen button): fire the Signal Volley when charged.
-- **P / Esc:** pause. On-screen buttons toggle **pause** and **sound**.
+Any Node host that supports WebSockets (Render, Railway, Fly, a VPS, etc.) with `DATABASE_URL` set. Run `npm run db:setup` once, then `npm start`. Set `PUBLIC_URL`/`ALLOWED_ORIGIN` to the deployed origin so the multiplayer join-QR points at it.
 
-## Poster / key art
+## Poster (event day)
 
-`assets/` holds the pieces for the event-day poster:
-
-- `outpost-title-backdrop.png` — the game's key art / banner (also the title
-  screen background), generated from the game's own renderer for a perfect
-  style match.
-- `Galvan AI logo transparent.png`, `InnoVista-rawal-logo.png` — official logos.
-
-Still to add for the poster: participant photo(s) and a QR code linking to your
-LinkedIn profile.
-
-## Art & audio
-
-Everything is drawn procedurally on canvas (no image assets) and all SFX are
-generated at runtime — a deliberate choice for a cohesive, hand-built look and a
-tiny download. Palette is a stark dusty desert-night: deep terrain, warm
-watchfire amber, type-coded raider rim-light. No stock textures, gradients, or
-generator dumps.
+Key art + logos live in `public/assets/branding/` and `public/assets/`. Still to add: participant photo + a QR to your LinkedIn.

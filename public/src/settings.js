@@ -46,6 +46,7 @@ OLW.Settings = (function () {
   /* ---------- apply settings to the running game ---------- */
   function apply() {
     if (OLW.Audio) OLW.Audio.setMuted(!S.get('sound'));
+    if (OLW.Music) OLW.Music.setMuted(!S.get('sound'));
     const mute = document.getElementById('mute-btn');
     if (mute) mute.textContent = S.get('sound') ? 'SOUND ON' : 'SOUND OFF';
   }
@@ -311,7 +312,6 @@ and
 
   function init() {
     injectCss();
-    injectButton();
     installReticle();
     installShake();
     apply();

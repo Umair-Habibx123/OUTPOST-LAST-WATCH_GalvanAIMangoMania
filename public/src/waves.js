@@ -74,8 +74,9 @@ window.OLW = window.OLW || {};
         if (roll < p.toughChance) type = 'tough';
         else if (roll < p.toughChance + p.fastChance) type = 'fast';
 
-        // small per-raider speed variance so a lane doesn't arrive as one clump
-        const creatureChance = U.clamp((this.wave - 4) * 0.035 + (p.raid ? 0.08 : 0), 0, 0.34);
+        // beast-creature raiders (from the creature atlas) mix in from wave 3,
+        // growing more common — a distinct enemy variety alongside the humans
+        const creatureChance = U.clamp((this.wave - 3) * 0.05 + (p.raid ? 0.12 : 0), 0, 0.5);
     const spec = { angle, type, speedMul: p.speedMul * U.rand(0.92, 1.1), creature: Math.random() < creatureChance };
         const t = i * interval + U.rand(-interval * 0.25, interval * 0.25);
         this.pending.push({ t: Math.max(0, t), spec });

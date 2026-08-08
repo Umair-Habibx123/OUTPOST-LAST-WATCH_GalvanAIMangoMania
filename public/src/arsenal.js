@@ -45,32 +45,25 @@ OLW.Arsenal = (function () {
   const byId = (id) => WEAPONS.find((w) => w.id === id) || WEAPONS[0];
   const SIDEARM = WEAPONS[0];
 
+ // NOTE: keys/costs mirror server/economy.js (server is authoritative).
  const UPGRADES = [
-  {
-    key: 'armour',
-    icon: 'armour',
-    name: 'Warden Armour',
-    max: 4,
-    cost: [200, 400, 700, 1100],
-    desc: '-10% wall damage taken per level.'
-  },
-  {
-    key: 'coinGain',
-    icon: 'coinrunner',
-    name: 'Coin Runners',
-    max: 3,
-    cost: [150, 300, 500],
-    desc: '+15% coins earned per level.'
-  },
-  {
-    key: 'startCoins',
-    icon: 'warchest',
-    name: 'War Chest',
-    max: 3,
-    cost: [120, 240, 400],
-    desc: '+80 starting run-coins per level.'
-  }
+  { key: 'armour',    icon: 'armour',     name: 'Warden Armour', max: 4, cost: [200, 400, 700, 1100], desc: '-10% wall damage taken per level.' },
+  { key: 'reload',    icon: null,         name: 'Rapid Reload',  max: 4, cost: [180, 360, 620, 980],  desc: '-6% fire cooldown per level (all weapons).' },
+  { key: 'fieldKit',  icon: null,         name: 'Field Kit',     max: 3, cost: [220, 460, 760],       desc: '+20% supply heal & ally strength per level.' },
+  { key: 'wallMend',  icon: null,         name: 'Wall Mender',   max: 3, cost: [200, 420, 700],       desc: '+4 perfect-wave repair per level.' },
+  { key: 'coinGain',  icon: 'coinrunner', name: 'Coin Runners',  max: 3, cost: [150, 300, 500],       desc: '+15% coins earned per level.' },
+  { key: 'startCoins', icon: 'warchest',  name: 'War Chest',     max: 3, cost: [120, 240, 400],       desc: '+80 starting run-coins per level.' }
 ];
+
+  // level-gated unlocks — mirrors server/economy.js WEAPONS.minLevel
+  const WEAPON_MINLEVEL = { sidearm: 1, repeater: 1, scattergun: 2, cannon: 4, mortar: 6, tesla: 8 };
+  const weaponMinLevel = (id) => WEAPON_MINLEVEL[id] || 1;
+
+  // per-weapon power levels (server-validated). More level = more impact.
+  const WUP = { max: 5, base: 130, growth: 1.55 };
+  const wupCost = (lvl) => Math.round(WUP.base * Math.pow(WUP.growth, lvl));
+  const weaponLevel = (id) => (D.profile.weaponLevels && D.profile.weaponLevels[id]) || 0;
+  const fieldKitMult = () => 1 + 0.2 * D.upgradeLevel('fieldKit');
 
   const CONSUMABLES = [
     { id: 'supply', key: 'z', name: 'Supply Line', tag: 'Repair', cost: 60, base: 1, perLevel: 0.5, desc: 'Restores +28 wall integrity instantly.' },
@@ -101,10 +94,13 @@ OLW.Arsenal = (function () {
   // faster than wall integrity so they remain powerful temporary tactical tools.
   // Any damage that reaches the wall also shocks deployed allies and accelerates
   // their loss, but each ally class has a different endurance profile.
+  // Allies have their own health meter. Life drains a little over time (passive)
+  // but MOSTLY when the wall is breached (wall × integrity lost) — they're far
+  // weaker than the wall, so every hit that gets past them costs them heavily.
   const FIELD_LIFE = {
-    rally:    { max: 100, passive: 2.8, wall: 0.90, attack: 0.45 }, // ~25–35s
-    warhound: { max: 100, passive: 3.9, wall: 0.68, attack: 1.15 }, // ~18–25s
-    dragon:   { max: 100, passive: 4.8, wall: 0.42, attack: 7.50 }  // ~10–18s
+    rally:    { max: 100, passive: 1.4, wall: 2.4, attack: 0.35 },
+    warhound: { max: 100, passive: 1.8, wall: 3.0, attack: 0.90 },
+    dragon:   { max: 100, passive: 2.2, wall: 3.6, attack: 2.20 }
   };
   const MAX_LEVEL = 20;
 
@@ -150,8 +146,54 @@ OLW.Arsenal = (function () {
     _run: {},
     _items: {},
     _active: {},
+    _blasts: [],
     _flash: 0,
     _game: null
+  };
+
+  // expanding shock-rings for weapon impacts (small pop → huge blast)
+  A.addBlast = function (x, y, radius, color, width, life) {
+    A._blasts.push({ x, y, max: radius, color: color || '#ffb347', width: width || 3, life: life || 0.3, maxLife: life || 0.3 });
+    if (A._blasts.length > 60) A._blasts.shift();
+  };
+
+  // Per-weapon muzzle + impact so each gun FEELS different (pistol tick → mortar BOOM)
+  A.weaponImpact = function (game, ax, ay, hit) {
+    const U = OLW.U, C = OLW.CONFIG, COL = OLW.COLORS;
+    const CX = C.WIDTH / 2, CY = C.HEIGHT / 2;
+    const w = A.current;
+    A.addBlast(CX, CY - 4, 14, '#ffd98a', 2, 0.09);   // muzzle flash at the tower
+    const puff = (n, color, spd, life, rr) => {
+      for (let i = 0; i < n; i++) {
+        const a = U.rand(0, U.TAU);
+        game.effects.push(new OLW.Particle(ax + Math.cos(a) * 4, ay + Math.sin(a) * 4, color,
+          { angle: a, speed: U.rand(spd * 0.4, spd), life: life, r: U.rand(1, rr) }));
+      }
+    };
+    switch (w.id) {
+      case 'sidearm':   game.spawnSparks(ax, ay, hit ? COL.parchment : '#6b6350', hit ? 4 : 2); break;
+      case 'repeater':  puff(4, '#bfe3ff', 150, 0.16, 2.2); A.addBlast(ax, ay, 11, '#bfe3ff', 2, 0.09); break;
+      case 'scattergun': puff(7, '#ffe1a8', 190, 0.22, 2.6); A.addBlast(ax, ay, 22, '#ffd08a', 2, 0.14); break;
+      case 'cannon':    A.addBlast(ax, ay, 58, '#ffb347', 5, 0.30); puff(18, '#ff7412', 260, 0.5, 4); game.shake = Math.min(14, game.shake + 7); break;
+      case 'mortar':    A.addBlast(ax, ay, 106, '#ff7412', 7, 0.4); A.addBlast(ax, ay, 60, '#ffd98a', 4, 0.28); puff(30, '#ff9a3c', 320, 0.7, 5); game.shake = Math.min(18, game.shake + 12); break;
+      case 'tesla':     A.addBlast(ax, ay, 40, '#8ed4f0', 3, 0.16); puff(9, '#8ed4f0', 230, 0.24, 2.6); break;
+      default:          game.spawnSparks(ax, ay, COL.parchment, 4);
+    }
+  };
+
+  A.drawBlasts = function (ctx) {
+    for (const b of A._blasts) {
+      const t = 1 - b.life / b.maxLife;
+      const r = b.max * (1 - Math.pow(1 - t, 2));   // ease-out expansion
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, b.life / b.maxLife);
+      ctx.strokeStyle = b.color;
+      ctx.lineWidth = b.width * (1 - t) + 0.6;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
   };
 
   function coinMult() { return 1 + 0.15 * D.upgradeLevel('coinGain'); }
@@ -165,6 +207,14 @@ OLW.Arsenal = (function () {
   A.level = level;
   A.addRunCoins = (n) => { A.runCoins += Math.round(n * coinMult()); };
   A.bump = () => { A._flash = 0.5; };
+
+  // seed a run's ammo/items from the (server-synced) profile
+  A.seedRun = function () {
+    A._run = {};
+    A._items = {};
+    for (const w of WEAPONS) if (!w.starter) A._run[w.id] = Math.min(D.profile.ammo[w.id] || 0, ammoCap(w));
+    for (const c of CONSUMABLES) A._items[c.id] = Math.min(D.profile.items[c.id] || 0, itemLimit(c) || 0);
+  };
 
   A.equip = function (id) {
     const w = byId(id);
@@ -185,93 +235,66 @@ OLW.Arsenal = (function () {
     const U = OLW.U;
     const COL = OLW.COLORS;
     const w = A.current;
-    const lv = level();
+    const lv = level();               // player XP level
+    const wl = weaponLevel(w.id);     // this weapon's upgrade level
+
+    const strike = (r, color, n) => {
+      if (r.strike()) { game.kills += 1; game.bonusScore += C.SCORE_PER_KILL; game.spawnSparks(r.x, r.y, color, n || 6); }
+      else game.spawnSparks(r.x, r.y, r.rim, 3);
+    };
+
+    if (w.mode === 'single') {
+      // upgraded pistol/repeater hits harder: extra strikes on the aimed target
+      if (wl <= 0) return;
+      let best = null, bd = C.AIM_ASSIST_RADIUS + 6;
+      for (const r of game.raiders) { if (!r.alive) continue; const d = U.dist(ax, ay, r.x, r.y); if (d < bd) { bd = d; best = r; } }
+      if (best) { let hits = wl; while (hits-- > 0 && best.alive) strike(best, COL.parchment, 6); }
+      return;
+    }
 
     if (w.mode === 'spread') {
-      const count = w.spread + (lv >= 8 ? 1 : 0);
+      const count = w.spread + Math.floor(lv / 8) + wl;   // +1 pellet per weapon level
+      const radius = w.radius + wl * 8;
       const near = game.raiders
-        .filter((r) => r.alive && U.dist(ax, ay, r.x, r.y) < w.radius)
+        .filter((r) => r.alive && U.dist(ax, ay, r.x, r.y) < radius)
         .sort((p, q) => U.dist(ax, ay, p.x, p.y) - U.dist(ax, ay, q.x, q.y))
         .slice(0, count);
-
-      for (const r of near) {
-        game.fireBolt(r.x, r.y, false, 1);
-        const killed = r.strike();
-        if (killed) {
-          game.kills += 1;
-          game.bonusScore += C.SCORE_PER_KILL;
-          game.spawnSparks(r.x, r.y, COL.parchment, 6);
-        } else {
-          game.spawnSparks(r.x, r.y, r.rim, 3);
-        }
-      }
+      for (const r of near) { game.fireBolt(r.x, r.y, false, 1); strike(r, COL.parchment, 6); }
       return;
     }
 
     if (w.mode === 'aoe') {
-      const punch = w.punch + Math.floor(lv / 6);
-      const inRange = game.raiders.filter((r) => r.alive && U.dist(ax, ay, r.x, r.y) < w.radius);
-
+      const radius = w.radius + wl * 12;
+      const mortar = w.id === 'mortar';                    // Mortar wipes its whole blast
+      const punch = w.punch + Math.floor(lv / 6) + wl;
+      const inRange = game.raiders.filter((r) => r.alive && U.dist(ax, ay, r.x, r.y) < radius);
       for (const r of inRange) {
-        let hits = punch;
-        while (hits-- > 0 && r.alive) {
-          if (r.strike()) {
-            game.kills += 1;
-            game.bonusScore += C.SCORE_PER_KILL;
-          }
-        }
-        game.spawnSparks(r.x, r.y, COL.torch, 7, 200);
+        if (mortar) { while (r.alive) strike(r, COL.torch, 7); }
+        else { let hits = punch; while (hits-- > 0 && r.alive) strike(r, COL.torch, 7); }
       }
-
-      for (let i = 0; i < 14; i += 1) {
-        const angle = (i / 14) * U.TAU;
-        game.effects.push(new OLW.Particle(
-          ax + Math.cos(angle) * 6,
-          ay + Math.sin(angle) * 6,
-          COL.torchCore,
-          { angle, speed: U.rand(120, 200), life: 0.3, r: U.rand(1.5, 3) }
-        ));
+      const ring = mortar ? 24 : 14;
+      for (let i = 0; i < ring; i += 1) {
+        const angle = (i / ring) * U.TAU;
+        game.effects.push(new OLW.Particle(ax + Math.cos(angle) * 6, ay + Math.sin(angle) * 6, COL.torchCore,
+          { angle, speed: U.rand(140, 240), life: 0.34, r: U.rand(1.6, 3.4) }));
       }
-
-      game.shake = Math.min(12, game.shake + 4);
+      game.shake = Math.min(mortar ? 18 : 12, game.shake + (mortar ? 10 : 4));
       return;
     }
 
     if (w.mode === 'chain') {
-      const links = w.chain + (lv >= 10 ? 1 : 0);
+      const links = w.chain + Math.floor(lv / 10) + Math.ceil(wl / 1.5);
+      const radius = w.radius + wl * 10;
       const hit = new Set();
-      let fx = ax;
-      let fy = ay;
-
+      let fx = ax, fy = ay;
       for (let i = 0; i < links; i += 1) {
-        let best = null;
-        let bestDistance = w.radius;
-
-        for (const r of game.raiders) {
-          if (!r.alive || hit.has(r)) continue;
-          const distance = U.dist(fx, fy, r.x, r.y);
-          if (distance < bestDistance) {
-            bestDistance = distance;
-            best = r;
-          }
-        }
-
+        let best = null, bd = radius;
+        for (const r of game.raiders) { if (!r.alive || hit.has(r)) continue; const d = U.dist(fx, fy, r.x, r.y); if (d < bd) { bd = d; best = r; } }
         if (!best) break;
-
         hit.add(best);
         game.bolts.push({ x1: fx, y1: fy, x2: best.x, y2: best.y, life: 0.12, max: 0.12, playerSlot: 2 });
-        const killed = best.strike();
-
-        if (killed) {
-          game.kills += 1;
-          game.bonusScore += C.SCORE_PER_KILL;
-          game.spawnSparks(best.x, best.y, '#8ed4f0', 6);
-        } else {
-          game.spawnSparks(best.x, best.y, '#8ed4f0', 3);
-        }
-
-        fx = best.x;
-        fy = best.y;
+        strike(best, '#8ed4f0', 6);
+        fx = best.x; fy = best.y;
       }
     }
   };
@@ -295,7 +318,7 @@ OLW.Arsenal = (function () {
 
     if (id === 'supply') {
       const before = g.integrity;
-      g.integrity = U.clamp(g.integrity + 28, 0, C.INTEGRITY_MAX);
+      g.integrity = U.clamp(g.integrity + Math.round(28 * fieldKitMult()), 0, C.INTEGRITY_MAX);
       const healed = Math.round(g.integrity - before);
 
       // Supplies also replenish one random owned weapon that is not full.
@@ -325,7 +348,7 @@ OLW.Arsenal = (function () {
     } else if (id === 'rally') {
       const spec = FIELD_LIFE.rally;
       A._active.rally = {
-        hp: spec.max, maxHp: spec.max,
+        hp: Math.round(spec.max * fieldKitMult()), maxHp: Math.round(spec.max * fieldKitMult()),
         acc: 0, phase: 0, muzzle: -1, muzzleLife: 0,
         targets: [{ x: CX, y: CY - 100 }, { x: CX, y: CY - 100 }]
       };
@@ -335,7 +358,7 @@ OLW.Arsenal = (function () {
     } else if (id === 'warhound') {
       const spec = FIELD_LIFE.warhound;
       A._active.warhound = {
-        hp: spec.max, maxHp: spec.max,
+        hp: Math.round(spec.max * fieldKitMult()), maxHp: Math.round(spec.max * fieldKitMult()),
         acc: 0, x: CX, y: CY + 34, phase: 0, pounce: 0, angle: 0
       };
       g.addFloater(CX, CY - 110, 'WAR BEAST UNLEASHED · 100 LIFE', '#c98a4a', 18);
@@ -344,7 +367,7 @@ OLW.Arsenal = (function () {
     } else if (id === 'dragon') {
       const spec = FIELD_LIFE.dragon;
       A._active.dragon = {
-        hp: spec.max, maxHp: spec.max,
+        hp: Math.round(spec.max * fieldKitMult()), maxHp: Math.round(spec.max * fieldKitMult()),
         phase: 0, attackAcc: .65,
         breathFlash: 0
       };
@@ -406,21 +429,33 @@ OLW.Arsenal = (function () {
       a.acc += dt;
       a.phase += dt * 5.5;
 
-      while (a.acc >= .48 && a.hp > 0) {
-        a.acc -= .48;
-        const which = Math.floor(a.phase) % 2;
-        const angle = which === 0 ? Math.PI * 1.08 : Math.PI * 1.92;
-        const gx = CX + Math.cos(angle) * 54;
-        const gy = CY + Math.sin(angle) * 38;
-        const best = nearest(gx, gy);
-
-        if (best) {
-          a.targets[which] = { x: best.x, y: best.y };
-          game.bolts.push({ x1: gx, y1: gy, x2: best.x, y2: best.y, life: .12, max: .12, playerSlot: 2, ally: true });
-          killRaider(best, '#8ed4f0', 6);
-          a.hp -= spec.attack;
-          a.muzzle = which;
-          a.muzzleLife = .10;
+      // Two guards with LOW-LEVEL guns: each covers one side (west / east) and
+      // can only hit raiders within its short range — not infinite, not all four
+      // directions. (a.range can be raised later by a team-weapon upgrade.)
+      const RANGE = a.range || 205;
+      const guards = [
+        { gx: CX - 62, gy: CY + 34, west: true, idx: 0 },
+        { gx: CX + 62, gy: CY + 34, west: false, idx: 1 },
+      ];
+      while (a.acc >= .42 && a.hp > 0) {
+        a.acc -= .42;
+        for (const g of guards) {
+          let best = null, bd = RANGE;
+          for (const r of game.raiders) {
+            if (!r.alive) continue;
+            const onSide = g.west ? (r.x <= CX) : (r.x > CX);   // side coverage
+            if (!onSide) continue;
+            const d = U.dist(g.gx, g.gy, r.x, r.y);             // range limit
+            if (d < bd) { bd = d; best = r; }
+          }
+          if (best) {
+            a.targets[g.idx] = { x: best.x, y: best.y };
+            game.bolts.push({ x1: g.gx, y1: g.gy, x2: best.x, y2: best.y, life: .12, max: .12, playerSlot: 2, ally: true });
+            killRaider(best, '#8ed4f0', 5);
+            a.hp -= spec.attack;
+            a.muzzle = g.idx;
+            a.muzzleLife = .10;
+          }
         }
       }
 
@@ -452,6 +487,14 @@ OLW.Arsenal = (function () {
         } else h.acc = 0;
       }
 
+      // keep the beast inside the visible field — it patrols and intercepts
+      // raiders as they close on the centre, never wandering off-screen
+      const FR = Math.min(CX, CY) - 16;
+      const dc = U.dist(h.x, h.y, CX, CY);
+      if (dc > FR) { h.x = CX + (h.x - CX) / dc * FR; h.y = CY + (h.y - CY) / dc * FR; }
+      h.x = U.clamp(h.x, 26, C.WIDTH - 26);
+      h.y = U.clamp(h.y, 26, C.HEIGHT - 26);
+
       if (h.pounce > 0) h.pounce -= dt;
       if (h.hp <= 0) destroyAlly('warhound', 'WAR BEAST FALLEN', '#c98a4a');
     }
@@ -464,16 +507,18 @@ OLW.Arsenal = (function () {
       d.attackAcc += dt;
       if (d.breathFlash > 0) d.breathFlash -= dt;
 
-      // Repeated attack runs replace the old one-frame instant screen clear.
-      if (d.attackAcc >= 1.35 && d.hp > spec.attack) {
-        d.attackAcc -= 1.35;
+      // Like the beast: only breathe when raiders are actually closing on the
+      // wall — no more blind timed attacks. Targets the nearest few to centre.
+      const guardBand = C.WALL_RADIUS + 150;
+      const targets = game.raiders
+        .filter((r) => r.alive && U.dist(r.x, r.y, CX, CY) < guardBand)
+        .sort((a, b) => U.dist2(a.x, a.y, CX, CY) - U.dist2(b.x, b.y, CX, CY))
+        .slice(0, 3);
+
+      if (targets.length && d.attackAcc >= 1.05 && d.hp > spec.attack) {
+        d.attackAcc = 0;
         d.hp -= spec.attack;
         d.breathFlash = .35;
-
-        const targets = game.raiders
-          .filter((r) => r.alive)
-          .sort((a, b) => U.dist2(a.x, a.y, CX, CY) - U.dist2(b.x, b.y, CX, CY))
-          .slice(0, 3);
 
         let hits = 0;
         for (const r of targets) {
@@ -523,7 +568,7 @@ OLW.Arsenal = (function () {
     const a = A._active.rally; if (!a) return;
     const C = OLW.CONFIG, CX = C.WIDTH/2, CY = C.HEIGHT/2;
     const atlas = OLW.Assets?.ready?.('backupGuardAtlas') ? OLW.Assets.images.backupGuardAtlas : null;
-    const positions = [{x:CX-64,y:CY+40,index:0},{x:CX+64,y:CY+40,index:1}];
+    const positions = [{x:CX-62,y:CY+34,index:0},{x:CX+62,y:CY+34,index:1}];
     for (const p of positions) {
       const target = a.targets?.[p.index] || {x:CX,y:CY-100};
       const row = atlasDirectionRow(Math.atan2(target.y-p.y,target.x-p.x));
@@ -539,11 +584,14 @@ OLW.Arsenal = (function () {
     const h = A._active.warhound; if (!h) return;
     if (OLW.Assets?.ready?.('warBeastAtlas')) {
       const atlas = OLW.Assets.images.warBeastAtlas, row = atlasDirectionRow(h.angle || 0);
-      const frame = h.pounce > 0 ? (h.pounce > .075 ? 4 : 5) : Math.floor(h.phase*.72)%4;
-      drawAtlasFrame(ctx, atlas, 6, 8, frame, row, h.x, h.y, h.pounce > 0 ? 84 : 75, .99); return;
+      const frame = h.pounce > 0 ? (h.pounce > .075 ? 4 : 5) : Math.floor(h.phase * .72) % 4;
+      drawAtlasFrame(ctx, atlas, 6, 8, frame, row, h.x, h.y, h.pounce > 0 ? 84 : 75, .99);
+    } else if (OLW.Assets?.ready?.('warBeast')) {
+      const im = OLW.Assets.images.warBeast, w = 72, hh = w * im.naturalHeight / im.naturalWidth;
+      ctx.drawImage(im, h.x - w / 2, h.y - hh * .76, w, hh);
     }
-    if (OLW.Assets?.ready?.('warBeast')) { const im=OLW.Assets.images.warBeast,w=72,hh=w*im.naturalHeight/im.naturalWidth; ctx.drawImage(im,h.x-w/2,h.y-hh*.76,w,hh); }
-    drawFieldLifeBar(ctx, h.x, h.y + 12, 62, h.hp, h.maxHp, '#c98a4a');
+    // health meter always shown (was being skipped by the atlas branch's return)
+    drawFieldLifeBar(ctx, h.x, h.y - 30, 58, h.hp, h.maxHp, '#c98a4a');
   }
 
   function drawDragon(ctx) {
@@ -551,46 +599,57 @@ OLW.Arsenal = (function () {
     if (!d) return;
 
     const C = OLW.CONFIG;
-    const progress = d.phase % 1;
-    const x = -125 + progress * (C.WIDTH + 250);
-    const y = 132 - Math.sin(progress * Math.PI) * 76;
+    // Orbit OVER the field (stays fully on-screen) rather than flying off the edge,
+    // so it reads as circling and torching the raiders closing on the centre.
+    const ang = (d.phase % 1) * Math.PI * 2;
+    const Rx = C.WIDTH * 0.30, Ry = C.HEIGHT * 0.22;
+    const x = C.WIDTH / 2 + Math.cos(ang) * Rx;
+    const y = C.HEIGHT * 0.40 + Math.sin(ang) * Ry;
+    const flip = (-Math.sin(ang)) < 0 ? -1 : 1;    // face along the orbit tangent
+
+    let frame;
+    if (d.breathFlash > 0) {
+      const breathProgress = 1 - d.breathFlash / .35;
+      frame = 5 + Math.min(2, Math.floor(breathProgress * 3));
+    } else if (d.attackAcc > 1.05) {
+      frame = 4;
+    } else {
+      frame = Math.floor((d.phase % 1) * 24) % 4;
+    }
 
     if (OLW.Assets?.ready?.('dragonAtlas')) {
       const atlas = OLW.Assets.images.dragonAtlas;
-      let frame;
-
-      if (d.breathFlash > 0) {
-        const breathProgress = 1 - d.breathFlash / .35;
-        frame = 5 + Math.min(2, Math.floor(breathProgress * 3));
-      } else if (d.attackAcc > 1.05) {
-        frame = 4; // inhale just before the next breath attack
-      } else {
-        frame = Math.floor(progress * 24) % 4;
-      }
-
-      drawAtlasFrame(ctx, atlas, 8, 1, frame, 0, x, y, 210, .98);
-
-      if (frame >= 5) {
-        ctx.save();
-        ctx.globalCompositeOperation = 'screen';
-        const g = ctx.createRadialGradient(x + 92, y - 24, 0, x + 92, y - 24, 68);
-        g.addColorStop(0, 'rgba(255,189,78,.34)');
-        g.addColorStop(1, 'rgba(255,84,14,0)');
-        ctx.fillStyle = g;
-        ctx.beginPath(); ctx.arc(x + 92, y - 24, 68, 0, Math.PI * 2); ctx.fill();
-        ctx.restore();
-      }
-
-      drawFieldLifeBar(ctx, x, y + 36, 78, d.hp, d.maxHp, '#ff7412');
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(flip, 1);
+      drawAtlasFrame(ctx, atlas, 8, 1, frame, 0, 0, 0, 200, .98);
+      ctx.restore();
+    } else if (OLW.Assets?.ready?.('dragon')) {
+      const im = OLW.Assets.images.dragon;
+      const w = 185, h = w * im.naturalHeight / im.naturalWidth;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(flip, 1);
+      ctx.drawImage(im, -w / 2, -h * .72, w, h);
+      ctx.restore();
+    } else {
       return;
     }
 
-    if (OLW.Assets?.ready?.('dragon')) {
-      const im = OLW.Assets.images.dragon;
-      const w = 185, h = w * im.naturalHeight / im.naturalWidth;
-      ctx.drawImage(im, x - w/2, y - h*.72, w, h);
-      drawFieldLifeBar(ctx, x, y + 36, 78, d.hp, d.maxHp, '#ff7412');
+    // fiery breath glow at the head (offset follows facing)
+    if (frame >= 5) {
+      const hx = x + flip * 92, hy = y - 24;
+      ctx.save();
+      ctx.globalCompositeOperation = 'screen';
+      const g = ctx.createRadialGradient(hx, hy, 0, hx, hy, 70);
+      g.addColorStop(0, 'rgba(255,189,78,.36)');
+      g.addColorStop(1, 'rgba(255,84,14,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(hx, hy, 70, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
     }
+
+    drawFieldLifeBar(ctx, x, y + 40, 78, d.hp, d.maxHp, '#ff7412');
   }
 
   A.drawFieldKit = function (game) {
@@ -600,6 +659,7 @@ OLW.Arsenal = (function () {
     drawBackupTeam(ctx, game);
     drawWarhound(ctx);
     drawDragon(ctx);
+    A.drawBlasts(ctx);
     ctx.restore();
   };
 
@@ -614,19 +674,11 @@ OLW.Arsenal = (function () {
       origReset.call(this);
       A._game = this;
       A.runCoins = startCoins();
-      A._run = {};
-      A._items = {};
       A._active = {};
       A._lastIntegrity = this.integrity;
-
-      for (const w of WEAPONS) {
-        if (!w.starter) A._run[w.id] = Math.min(D.profile.ammo[w.id] || 0, ammoCap(w));
-      }
-
-      for (const c of CONSUMABLES) {
-        A._items[c.id] = Math.min(D.profile.items[c.id] || 0, itemLimit(c) || 0);
-      }
-
+      A._runStarted = performance.now();
+      if (!D.synced && D.load) D.load();   // ensure the profile is on its way
+      A.seedRun();
       A.current = SIDEARM;
       renderBar();
       renderItemBar();
@@ -646,10 +698,13 @@ OLW.Arsenal = (function () {
       if (slot !== 2 && ready) {
         const w = A.current;
         if (!w.starter) A.consume(w.id, 1);
-        if (w.cdMul !== 1 && this.strikeCd > 0) {
-          this.strikeCd = OLW.CONFIG.STRIKE_COOLDOWN * w.cdMul;
+        // weapon cadence × Rapid Reload upgrade
+        if (this.strikeCd > 0) {
+          const reloadF = 1 - 0.06 * D.upgradeLevel('reload');
+          this.strikeCd = OLW.CONFIG.STRIKE_COOLDOWN * w.cdMul * reloadF;
         }
-        if (result && w.mode !== 'single') A.applyWeaponExtras(this, ax, ay);
+        if (result && (w.mode !== 'single' || weaponLevel(w.id) > 0)) A.applyWeaponExtras(this, ax, ay);
+        A.weaponImpact(this, ax, ay, !!result);   // per-weapon muzzle + impact
       }
 
       return result;
@@ -669,6 +724,8 @@ OLW.Arsenal = (function () {
         if (this.perfectWaves > perfectBefore) A.addRunCoins((this.perfectWaves - perfectBefore) * COIN.perfect);
         if (this.mangoGrabbed > mangoBefore) A.addRunCoins((this.mangoGrabbed - mangoBefore) * COIN.mango);
         if (A._flash > 0) A._flash = Math.max(0, A._flash - dt);
+        for (const b of A._blasts) b.life -= dt;
+        if (A._blasts.length) A._blasts = A._blasts.filter((b) => b.life > 0);
         A.tickAllies(this, dt);
         updateHud(this);
       }
@@ -687,6 +744,17 @@ OLW.Arsenal = (function () {
       origLanded.call(this, r);
       r.dmg = originalDamage;
     };
+
+    // Wall Mender upgrade: extra integrity on a perfect (no-damage) wave.
+    const origWave = P.waveCleared;
+    if (origWave) {
+      P.waveCleared = function (wave) {
+        const perfect = this.damageThisWave === 0;
+        origWave.call(this, wave);
+        const wm = D.upgradeLevel('wallMend');
+        if (perfect && wm > 0) this.integrity = OLW.U.clamp(this.integrity + 4 * wm, 0, OLW.CONFIG.INTEGRITY_MAX);
+      };
+    }
 
     const origRender = P.render;
     P.render = function () {
@@ -845,17 +913,39 @@ OLW.Arsenal = (function () {
     [elCoins, elBar, elItems, elQuit].forEach((node) => node?.classList.add('hidden'));
   }
 
-  function quitToMenu() {
+  function doQuit() {
     const game = A._game;
     if (!game) return;
-
-    A.bankRun(game);
+    A.bankRun(game);          // banked coins are kept
     game.stop();
     game.state = 'menu';
     hideHud();
-
     const menu = document.getElementById('btn-menu');
     if (menu) menu.click();
+  }
+
+  let quitModal;
+  function hideQuitModal() { if (quitModal) quitModal.style.display = 'none'; }
+  function quitToMenu() {
+    const game = A._game;
+    if (!game) return;
+    if (game.state === 'playing') game.pause();     // freeze the watch while asking
+    if (!quitModal) {
+      quitModal = el('div', 'ars-confirm');
+      quitModal.innerHTML =
+        `<div class="ars-confirm-box">
+          <h3>Abandon the watch?</h3>
+          <p>A watch runs until the wall falls — there's no saving mid-run. Quit now and <b>this run is over</b> and won't reach the Watch Roll. (Coins you've already banked are kept.)</p>
+          <div class="ars-confirm-actions">
+            <button class="primary-btn ars-confirm-yes">Abandon watch</button>
+            <button class="secondary-btn ars-confirm-no">Keep playing</button>
+          </div>
+        </div>`;
+      (document.getElementById('stage') || document.body).appendChild(quitModal);
+      quitModal.querySelector('.ars-confirm-yes').onclick = () => { hideQuitModal(); doQuit(); };
+      quitModal.querySelector('.ars-confirm-no').onclick = () => { hideQuitModal(); if (A._game && A._game.state === 'paused') A._game.resume(); };
+    }
+    quitModal.style.display = 'grid';
   }
 
   function injectLegacyShopButton() {
@@ -912,7 +1002,7 @@ OLW.Arsenal = (function () {
 
     if (kind === 'unlock') {
       const w = byId(id);
-      if (!w || w.starter || D.isUnlocked(w.id) || p.stash < w.unlockCost) return false;
+      if (!w || w.starter || D.isUnlocked(w.id) || level() < weaponMinLevel(w.id) || p.stash < w.unlockCost) return false;
       p.stash -= w.unlockCost;
       p.unlocked = Array.from(new Set([...(p.unlocked || []), w.id]));
       return true;
@@ -948,6 +1038,17 @@ OLW.Arsenal = (function () {
       if (current >= u.max || cost == null || p.stash < cost) return false;
       p.stash -= cost;
       p.upgrades = { ...(p.upgrades || {}), [u.key]: current + 1 };
+      return true;
+    }
+
+    if (kind === 'weaponUpgrade') {
+      const w = byId(id);
+      if (!w || !D.isUnlocked(w.id)) return false;
+      const lvl = (p.weaponLevels && p.weaponLevels[id]) || 0;
+      const cost = wupCost(lvl);
+      if (lvl >= WUP.max || p.stash < cost) return false;
+      p.stash -= cost;
+      p.weaponLevels = { ...(p.weaponLevels || {}), [id]: lvl + 1 };
       return true;
     }
 
@@ -1017,10 +1118,19 @@ OLW.Arsenal = (function () {
       }
 
       if (!D.isUnlocked(w.id)) {
+        const need = weaponMinLevel(w.id);
+        if (level() < need) {
+          return row(
+            `${w.name} <em>${w.tag}</em>`,
+            `${w.desc} <i>Unlocks at level ${need}.</i>`,
+            `<span class="ars-tag-lock">Lv ${need}</span>`,
+            icon
+          );
+        }
         const can = p.stash >= w.unlockCost;
         return row(
           `${w.name} <em>${w.tag}</em>`,
-          `${w.desc} <i>Locked — one-time unlock.</i>`,
+          `${w.desc} <i>One-time unlock.</i>`,
           `<button class="ars-buy${can ? '' : ' dis'}" data-unlock="${w.id}">Unlock ◎${w.unlockCost}</button>`,
           icon
         );
@@ -1029,15 +1139,21 @@ OLW.Arsenal = (function () {
       const cap = ammoCap(w);
       const have = p.ammo[w.id] || 0;
       const full = have >= cap;
-      const can = !full && p.stash >= w.clipCost;
-      const ammoBar = `<div class="ars-ammo"><div class="ars-ammo-fill" style="width:${Math.min(100, (have / cap) * 100)}%"></div></div><small>${have}/${cap} rounds · Lv-capped</small>`;
+      const canAmmo = !full && p.stash >= w.clipCost;
+      const wl = weaponLevel(w.id);
+      const canUp = wl < WUP.max && p.stash >= wupCost(wl);
+      const ammoBar = `<div class="ars-ammo"><div class="ars-ammo-fill" style="width:${Math.min(100, (have / cap) * 100)}%"></div></div><small>${have}/${cap} rounds${wl > 0 ? ` · Lv ${wl}` : ''}</small>`;
+      const ammoBtn = full
+        ? '<span class="ars-tag-owned">Full</span>'
+        : `<button class="ars-buy${canAmmo ? '' : ' dis'}" data-ammo="${w.id}">+${w.clip} ◎${w.clipCost}</button>`;
+      const upBtn = wl >= WUP.max
+        ? '<span class="ars-tag-owned">Lv MAX</span>'
+        : `<button class="ars-buy ars-buy-alt${canUp ? '' : ' dis'}" data-wup="${w.id}">Upgrade Lv ${wl + 1} ◎${wupCost(wl)}</button>`;
 
       return row(
-        `${w.name} <em>${w.tag}</em>`,
+        `${w.name} <em>${w.tag}${wl > 0 ? ` · Lv ${wl}` : ''}</em>`,
         ammoBar,
-        full
-          ? '<span class="ars-tag-owned">Full</span>'
-          : `<button class="ars-buy${can ? '' : ' dis'}" data-ammo="${w.id}">+${w.clip} ◎${w.clipCost}</button>`,
+        `<div class="ars-actions">${ammoBtn}${upBtn}</div>`,
         icon
       );
     }).join('');
@@ -1135,6 +1251,7 @@ OLW.Arsenal = (function () {
     };
     elShop.querySelectorAll('[data-unlock]').forEach((b) => { b.onclick = () => buy(b, 'unlock', b.dataset.unlock); });
     elShop.querySelectorAll('[data-ammo]').forEach((b) => { b.onclick = () => buy(b, 'ammo', b.dataset.ammo, () => OLW.Audio?.hit?.()); });
+    elShop.querySelectorAll('[data-wup]').forEach((b) => { b.onclick = () => buy(b, 'weaponUpgrade', b.dataset.wup); });
     elShop.querySelectorAll('[data-item]').forEach((b) => { b.onclick = () => buy(b, 'item', b.dataset.item, () => OLW.Audio?.hit?.()); });
     elShop.querySelectorAll('[data-up]').forEach((b) => { b.onclick = () => buy(b, 'upgrade', b.dataset.up); });
   }
@@ -1258,6 +1375,13 @@ function afterBuy() {
       .ars-shop-info{min-width:0}.ars-shop-info>b{display:block;color:#ede5d5;font-size:13px}.ars-shop-info em{font-style:normal;color:var(--amber,#e8a13a);font-size:10px;letter-spacing:1px;margin-left:4px}.ars-shop-info i{color:#9e988b;font-style:normal}.ars-shop-info small{display:block;margin-top:5px;color:#9e988b;font-size:10px;line-height:1.4}
       .ars-shop-action{display:flex;justify-content:flex-end;min-width:86px}.ars-tag-lock{font-size:11px;font-weight:800;color:#9e988b;white-space:nowrap}.ars-tag-owned{font-size:11px;font-weight:800;color:var(--green,#8fae5c);white-space:nowrap}
       .ars-ammo{height:5px;background:rgba(255,255,255,.1);border-radius:3px;overflow:hidden;margin-bottom:3px;max-width:180px}.ars-ammo-fill{height:100%;background:var(--amber,#e8a13a)}
+      .ars-actions{display:flex;flex-direction:column;gap:5px;align-items:flex-end}
+      .ars-buy-alt{background:linear-gradient(180deg,#8ec3f5,#3a78c4)!important;color:#0b1626!important}
+      .ars-confirm{position:absolute;inset:0;z-index:50;display:none;place-items:center;background:rgba(4,6,9,.74);backdrop-filter:blur(3px)}
+      .ars-confirm-box{width:min(430px,90%);padding:24px;background:linear-gradient(165deg,rgba(40,44,50,.98),rgba(14,18,24,.99));border:1px solid #3b3b44;text-align:center;color:#e9dfcb;box-shadow:0 24px 70px rgba(0,0,0,.6)}
+      .ars-confirm-box h3{margin:0 0 10px;font-size:21px;color:#f2d9a6}
+      .ars-confirm-box p{margin:0 0 18px;font-size:13px;color:#c9c1b0;line-height:1.55}
+      .ars-confirm-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
       .ars-buy{border:0;cursor:pointer;font-weight:900;color:#231708;background:linear-gradient(180deg,#f5c36b,#e8a13a);padding:8px 12px;border-radius:3px;white-space:nowrap}.ars-buy.dis{opacity:.4;cursor:not-allowed;filter:grayscale(.6)}
       .ars-shop-close{flex:none;margin-top:14px}
 
@@ -1290,10 +1414,23 @@ function afterBuy() {
     A.install();
     bindExternalArmoryButton();
 
+    // Robust fallback: always open the Armory on click, even if the launcher
+    // button was (re)rendered after the direct binding ran.
+    document.addEventListener('click', (e) => {
+      const t = e.target;
+      if (t && t.closest && t.closest('#btn-armory-launch')) { e.preventDefault(); openShop(); }
+    });
+
     window.addEventListener('olw:profilesync', () => {
+      // if the profile arrived just after a run started, re-seed so the player
+      // gets the weapons/ammo they actually own (fixes "armory not loaded yet")
+      if (A._game && A._game.state === 'playing' && (performance.now() - (A._runStarted || 0)) < 1800) {
+        A.seedRun();
+      }
       A.current = byId(D.profile.loadout);
       if (!A.owned(A.current)) A.current = SIDEARM;
       renderBar();
+      renderItemBar();
       refreshStashLabels();
       bindExternalArmoryButton();
       if (elShop && !elShop.classList.contains('hidden')) renderShopPreserveScroll();
