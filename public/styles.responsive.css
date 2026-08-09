@@ -82,7 +82,8 @@ body {
   display: block;
 
   touch-action: none;
-  cursor: crosshair;
+  /* hide the OS pointer over the field — the in-game reticle is the aim cursor */
+  cursor: none;
 }
 
 @media (min-aspect-ratio: 2/1) {
