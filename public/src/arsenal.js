@@ -211,9 +211,44 @@ OLW.Arsenal = (function () {
 
   A.owned = (w) => w.starter || D.isUnlocked(w.id);
   A.runAmmo = (id) => byId(id).starter ? Infinity : (A._run[id] || 0);
-  A.consume = (id, n) => {
-    if (!byId(id).starter) A._run[id] = Math.max(0, (A._run[id] || 0) - n);
-  };
+  A.consume = (
+  id,
+  n
+) => {
+  const weapon =
+    byId(id);
+
+  if (
+    !weapon ||
+    weapon.starter
+  ) {
+    return;
+  }
+
+  const before =
+    A._run[id] || 0;
+
+  A._run[id] =
+    Math.max(
+      0,
+      before - n
+    );
+
+  /*
+    Announce only the transition:
+      1+ ammo -> 0 ammo
+
+    Not every attempted empty shot.
+  */
+  if (
+    before > 0 &&
+    A._run[id] === 0
+  ) {
+    OLW.Voice?.speak?.(
+      `${weapon.name} ammunition depleted.`
+    );
+  }
+};
   A.level = level;
   A.addRunCoins = (n) => { A.runCoins += Math.round(n * coinMult()); };
   A.bump = () => { A._flash = 0.5; };
@@ -228,12 +263,29 @@ OLW.Arsenal = (function () {
 
   A.equip = function (id) {
     const w = byId(id);
-    if (!A.owned(w)) { A.bump(); return false; }
-    if (!w.starter && A.runAmmo(id) <= 0) {
-      A.bump();
-      OLW.Audio?.strike?.();
-      return false;
-    }
+   if (!A.owned(w)) {
+  A.bump();
+
+  OLW.Voice?.speak?.(
+    `${w.name} locked.`
+  );
+
+  return false;
+}
+
+if (
+  !w.starter &&
+  A.runAmmo(id) <= 0
+) {
+  A.bump();
+  OLW.Audio?.strike?.();
+
+  OLW.Voice?.speak?.(
+    `${w.name} ammunition depleted.`
+  );
+
+  return false;
+}
     A.current = w;   // loadout is persisted at run end via submitRun, not per-switch
     OLW.Audio?.hit?.();
     renderBar();
@@ -312,11 +364,23 @@ OLW.Arsenal = (function () {
   A.useItem = function (id) {
     const g = A._game;
     if (!g || g.state !== 'playing') return false;
-    if ((A._items[id] || 0) <= 0) {
-      A.bump();
-      OLW.Audio?.strike?.();
-      return false;
-    }
+   if ((A._items[id] || 0) <= 0) {
+  A.bump();
+  OLW.Audio?.strike?.();
+
+  const item =
+    CONSUMABLES.find(
+      c => c.id === id
+    );
+
+  OLW.Voice?.speak?.(
+    item
+      ? `${item.name} unavailable.`
+      : 'Equipment unavailable.'
+  );
+
+  return false;
+}
 
     A._items[id] -= 1;
 
@@ -437,131 +501,535 @@ OLW.Arsenal = (function () {
   }
 
   A.tickAllies = function (game, dt) {
-    const U = OLW.U;
-    const C = OLW.CONFIG;
-    const CX = C.WIDTH / 2;
-    const CY = C.HEIGHT / 2;
+  const U = OLW.U;
+  const C = OLW.CONFIG;
+  const CX = C.WIDTH / 2;
+  const CY = C.HEIGHT / 2;
 
-    const previousIntegrity = A._lastIntegrity == null ? game.integrity : A._lastIntegrity;
-    const wallLoss = Math.max(0, previousIntegrity - game.integrity);
-    A._lastIntegrity = game.integrity;
+  const previousIntegrity =
+    A._lastIntegrity == null
+      ? game.integrity
+      : A._lastIntegrity;
 
-    const nearest = (x, y, range) => {
-      let best = null;
-      let bestDistance = range == null ? Infinity : range;
-      for (const r of game.raiders) {
-        if (!r.alive) continue;
-        const d = U.dist(x, y, r.x, r.y);
-        if (d < bestDistance) { bestDistance = d; best = r; }
-      }
-      return best;
-    };
+  const wallLoss =
+    Math.max(
+      0,
+      previousIntegrity -
+        game.integrity
+    );
 
-    const killRaider = (target, color, sparks = 6) => {
-      if (!target || !target.alive) return false;
-      if (target.strike()) {
-        game.kills += 1;
-        game.bonusScore += C.SCORE_PER_KILL;
-        game.spawnSparks(target.x, target.y, color, sparks);
-        return true;
-      }
-      return false;
-    };
+  A._lastIntegrity =
+    game.integrity;
 
-    // remove dead instances of a type and announce the loss (once per frame)
-    const cull = (key, label, color) => {
-      const list = A._active[key];
-      if (list.some((o) => o.hp <= 0)) {
-        A._active[key] = list.filter((o) => o.hp > 0);
-        game.addFloater(CX, CY - 105, label, color, 15);
-        game.spawnSparks(CX, CY, color, 10, 150);
-      }
-    };
+  const nearest = (
+    x,
+    y,
+    range
+  ) => {
+    let best = null;
 
-    // ---- backup teams (each covers its own direction, own health) ----
-    for (const a of A._active.rally) {
-      const spec = FIELD_LIFE.rally;
-      a.hp -= spec.passive * dt + wallLoss * spec.wall;
-      a.acc += dt;
-      a.phase += dt * 5.5;
-      const RANGE = a.range || 205;
-      while (a.acc >= .42 && a.hp > 0) {
-        a.acc -= .42;
-        a.guards.forEach((g, idx) => {
-          const best = nearest(g.gx, g.gy, RANGE);
-          if (best) {
-            a.targets[idx] = { x: best.x, y: best.y };
-            game.bolts.push({ x1: g.gx, y1: g.gy, x2: best.x, y2: best.y, life: .12, max: .12, playerSlot: 2, ally: true });
-            killRaider(best, '#8ed4f0', 5);
-            a.hp -= spec.attack;
-            a.muzzle = idx;
-            a.muzzleLife = .10;
-          }
-        });
-      }
-      if (a.muzzleLife > 0) a.muzzleLife -= dt;
-    }
-    cull('rally', 'BACKUP TEAM LOST', '#8ed4f0');
+    let bestDistance =
+      range == null
+        ? Infinity
+        : range;
 
-    // ---- war beasts (each chases the nearest raider independently) ----
-    for (const h of A._active.warhound) {
-      const spec = FIELD_LIFE.warhound;
-      h.hp -= spec.passive * dt + wallLoss * spec.wall;
-      h.phase += dt * 11;
-
-      const target = nearest(h.x, h.y);
-      if (target) {
-        const angle = Math.atan2(target.y - h.y, target.x - h.x);
-        h.angle = angle;
-        h.x += Math.cos(angle) * 155 * dt;
-        h.y += Math.sin(angle) * 155 * dt;
-        if (U.dist(h.x, h.y, target.x, target.y) < target.r + 22) {
-          h.acc += dt;
-          if (h.acc >= .30) { h.acc = 0; h.pounce = .18; killRaider(target, '#c98a4a', 8); h.hp -= spec.attack; }
-        } else h.acc = 0;
+    for (
+      const r
+      of game.raiders
+    ) {
+      if (!r.alive) {
+        continue;
       }
 
-      const FR = Math.min(CX, CY) - 16;
-      const dc = U.dist(h.x, h.y, CX, CY);
-      if (dc > FR) { h.x = CX + (h.x - CX) / dc * FR; h.y = CY + (h.y - CY) / dc * FR; }
-      h.x = U.clamp(h.x, 26, C.WIDTH - 26);
-      h.y = U.clamp(h.y, 26, C.HEIGHT - 26);
-      if (h.pounce > 0) h.pounce -= dt;
-    }
-    cull('warhound', 'WAR BEAST FALLEN', '#c98a4a');
+      const d =
+        U.dist(
+          x,
+          y,
+          r.x,
+          r.y
+        );
 
-    // ---- dragons (each orbits at its own phase, breathes near the wall) ----
-    for (const d of A._active.dragon) {
-      const spec = FIELD_LIFE.dragon;
-      d.hp -= spec.passive * dt + wallLoss * spec.wall;
-      d.phase = (d.phase + dt * .16) % 1;
-      d.attackAcc += dt;
-      if (d.breathFlash > 0) d.breathFlash -= dt;
+      if (
+        d <
+        bestDistance
+      ) {
+        bestDistance =
+          d;
 
-      const guardBand = C.WALL_RADIUS + 150;
-      const targets = game.raiders
-        .filter((r) => r.alive && U.dist(r.x, r.y, CX, CY) < guardBand)
-        .sort((a, b) => U.dist2(a.x, a.y, CX, CY) - U.dist2(b.x, b.y, CX, CY))
-        .slice(0, 3);
-
-      if (targets.length && d.attackAcc >= 1.05 && d.hp > spec.attack) {
-        d.attackAcc = 0;
-        d.hp -= spec.attack;
-        d.breathFlash = .35;
-        let hits = 0;
-        for (const r of targets) {
-          let strikes = r.type === 'tough' ? 2 : 1;
-          while (strikes-- > 0 && r.alive) { if (killRaider(r, '#ff7412', 10)) hits += 1; }
-        }
-        if (hits) {
-          game.addFloater(CX, CY - 126, `DRAGON BREATH +${hits * C.SCORE_PER_KILL}`, '#ff7412', 17);
-          game.shake = Math.min(13, game.shake + 4);
-          OLW.Audio?.volley?.();
-        }
+        best =
+          r;
       }
     }
-    cull('dragon', 'DRAGON WITHDRAWS', '#ff7412');
+
+    return best;
   };
+
+  const killRaider = (
+    target,
+    color,
+    sparks = 6
+  ) => {
+    if (
+      !target ||
+      !target.alive
+    ) {
+      return false;
+    }
+
+    if (
+      target.strike()
+    ) {
+      game.kills += 1;
+
+      game.bonusScore +=
+        C.SCORE_PER_KILL;
+
+      game.spawnSparks(
+        target.x,
+        target.y,
+        color,
+        sparks
+      );
+
+      return true;
+    }
+
+    return false;
+  };
+
+  // ---------------------------------------------------------
+  // ALLY DEATH HANDLER
+  // ---------------------------------------------------------
+
+  const cull = (
+    key,
+    label,
+    color,
+    voiceLine
+  ) => {
+    const list =
+      A._active[key];
+
+    const dead =
+      list.filter(
+        ally =>
+          ally.hp <= 0
+      );
+
+    if (!dead.length) {
+      return;
+    }
+
+    A._active[key] =
+      list.filter(
+        ally =>
+          ally.hp > 0
+      );
+
+    game.addFloater(
+      CX,
+      CY - 105,
+      dead.length > 1
+        ? `${label} ×${dead.length}`
+        : label,
+      color,
+      15
+    );
+
+    game.spawnSparks(
+      CX,
+      CY,
+      color,
+      Math.min(
+        22,
+        10 +
+          dead.length * 3
+      ),
+      150
+    );
+
+    OLW.Voice?.speak?.(
+      dead.length > 1
+        ? `${dead.length} ${voiceLine}`
+        : voiceLine
+    );
+  };
+
+
+  // =========================================================
+  // BACKUP TEAMS
+  // =========================================================
+
+  for (
+    const a
+    of A._active.rally
+  ) {
+    const spec =
+      FIELD_LIFE.rally;
+
+    a.hp -=
+      spec.passive * dt +
+      wallLoss * spec.wall;
+
+    a.acc += dt;
+
+    a.phase +=
+      dt * 5.5;
+
+    const RANGE =
+      a.range || 205;
+
+    while (
+      a.acc >= .42 &&
+      a.hp > 0
+    ) {
+      a.acc -= .42;
+
+      a.guards.forEach(
+        (g, idx) => {
+          const best =
+            nearest(
+              g.gx,
+              g.gy,
+              RANGE
+            );
+
+          if (!best) {
+            return;
+          }
+
+          a.targets[idx] = {
+            x: best.x,
+            y: best.y
+          };
+
+          game.bolts.push({
+            x1: g.gx,
+            y1: g.gy,
+
+            x2: best.x,
+            y2: best.y,
+
+            life: .12,
+            max: .12,
+
+            playerSlot: 2,
+            ally: true
+          });
+
+          killRaider(
+            best,
+            '#8ed4f0',
+            5
+          );
+
+          a.hp -=
+            spec.attack;
+
+          a.muzzle =
+            idx;
+
+          a.muzzleLife =
+            .10;
+        }
+      );
+    }
+
+    if (
+      a.muzzleLife > 0
+    ) {
+      a.muzzleLife -=
+        dt;
+    }
+  }
+
+  cull(
+    'rally',
+    'BACKUP TEAM LOST',
+    '#8ed4f0',
+    'Reinforcement team lost.'
+  );
+
+
+  // =========================================================
+  // WAR BEASTS
+  // =========================================================
+
+  for (
+    const h
+    of A._active.warhound
+  ) {
+    const spec =
+      FIELD_LIFE.warhound;
+
+    h.hp -=
+      spec.passive * dt +
+      wallLoss * spec.wall;
+
+    h.phase +=
+      dt * 11;
+
+    const target =
+      nearest(
+        h.x,
+        h.y
+      );
+
+    if (target) {
+      const angle =
+        Math.atan2(
+          target.y - h.y,
+          target.x - h.x
+        );
+
+      h.angle =
+        angle;
+
+      h.x +=
+        Math.cos(angle) *
+        155 *
+        dt;
+
+      h.y +=
+        Math.sin(angle) *
+        155 *
+        dt;
+
+      if (
+        U.dist(
+          h.x,
+          h.y,
+          target.x,
+          target.y
+        ) <
+        target.r + 22
+      ) {
+        h.acc += dt;
+
+        if (
+          h.acc >= .30
+        ) {
+          h.acc = 0;
+
+          h.pounce =
+            .18;
+
+          killRaider(
+            target,
+            '#c98a4a',
+            8
+          );
+
+          h.hp -=
+            spec.attack;
+        }
+      } else {
+        h.acc =
+          0;
+      }
+    }
+
+    const FR =
+      Math.min(
+        CX,
+        CY
+      ) - 16;
+
+    const dc =
+      U.dist(
+        h.x,
+        h.y,
+        CX,
+        CY
+      );
+
+    if (
+      dc > FR
+    ) {
+      h.x =
+        CX +
+        (h.x - CX) /
+          dc *
+          FR;
+
+      h.y =
+        CY +
+        (h.y - CY) /
+          dc *
+          FR;
+    }
+
+    h.x =
+      U.clamp(
+        h.x,
+        26,
+        C.WIDTH - 26
+      );
+
+    h.y =
+      U.clamp(
+        h.y,
+        26,
+        C.HEIGHT - 26
+      );
+
+    if (
+      h.pounce > 0
+    ) {
+      h.pounce -= dt;
+    }
+  }
+
+  cull(
+    'warhound',
+    'WAR BEAST FALLEN',
+    '#c98a4a',
+    'War beast lost.'
+  );
+
+
+  // =========================================================
+  // DRAGONS
+  // =========================================================
+
+  for (
+    const d
+    of A._active.dragon
+  ) {
+    const spec =
+      FIELD_LIFE.dragon;
+
+    d.hp -=
+      spec.passive * dt +
+      wallLoss * spec.wall;
+
+    d.phase =
+      (
+        d.phase +
+        dt * .16
+      ) % 1;
+
+    d.attackAcc +=
+      dt;
+
+    if (
+      d.breathFlash > 0
+    ) {
+      d.breathFlash -=
+        dt;
+    }
+
+    const guardBand =
+      C.WALL_RADIUS +
+      150;
+
+    const targets =
+      game.raiders
+        .filter(
+          r =>
+            r.alive &&
+            U.dist(
+              r.x,
+              r.y,
+              CX,
+              CY
+            ) <
+              guardBand
+        )
+        .sort(
+          (a, b) =>
+            U.dist2(
+              a.x,
+              a.y,
+              CX,
+              CY
+            ) -
+            U.dist2(
+              b.x,
+              b.y,
+              CX,
+              CY
+            )
+        )
+        .slice(
+          0,
+          3
+        );
+
+    if (
+      targets.length &&
+      d.attackAcc >=
+        1.05 &&
+      d.hp >
+        spec.attack
+    ) {
+      d.attackAcc =
+        0;
+
+      d.hp -=
+        spec.attack;
+
+      d.breathFlash =
+        .35;
+
+      let hits =
+        0;
+
+      for (
+        const r
+        of targets
+      ) {
+        let strikes =
+          r.type === 'tough'
+            ? 2
+            : 1;
+
+        while (
+          strikes-- > 0 &&
+          r.alive
+        ) {
+          if (
+            killRaider(
+              r,
+              '#ff7412',
+              10
+            )
+          ) {
+            hits += 1;
+          }
+        }
+      }
+
+      if (hits) {
+        game.addFloater(
+          CX,
+          CY - 126,
+          `DRAGON BREATH +${
+            hits *
+            C.SCORE_PER_KILL
+          }`,
+          '#ff7412',
+          17
+        );
+
+        game.shake =
+          Math.min(
+            13,
+            game.shake + 4
+          );
+
+        OLW.Audio?.volley?.();
+      }
+    }
+  }
+
+  cull(
+    'dragon',
+    'DRAGON WITHDRAWS',
+    '#ff7412',
+    'Dragon strike exhausted.'
+  );
+};
 
   function atlasDirectionRow(angle) {
     return ((Math.round(angle / (Math.PI / 4)) % 8) + 8) % 8;

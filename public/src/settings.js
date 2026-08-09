@@ -9,8 +9,16 @@ window.OLW = window.OLW || {};
 
 OLW.Settings = (function () {
   const D = OLW.Device;
-  const DEFAULTS = { sound: true, reticle: 'brackets', shake: true, backup: 'auto', controlMode: 'device', voiceHelp: false };
+  const DEFAULTS = {
+  sound: true,
+  reticle: 'brackets',
+  shake: true,
+  backup: 'auto',
+  controlMode: 'device',
 
+  voiceHelp: false,
+  voiceResponse: true
+};
   // Player-selectable control modes ONLY. AI aim-assist is intentionally NOT
   // here — it's a system/demo aid and would be an unfair advantage if players
   // could switch it on. Face + voice modes were removed; hand-cam is the one
@@ -145,6 +153,11 @@ OLW.Settings = (function () {
           ${toggleRow('Sound', 'sound', 'Music &amp; effects')}
           ${toggleRow('Screen shake', 'shake', 'Camera kick on impacts')}
           ${toggleRow('Voice help during game', 'voiceHelp', 'Say “war beast”, “dragon”, “backup team”, “supply”, or a weapon name to deploy / switch. Needs mic permission — aiming &amp; firing stay manual.')}
+          ${toggleRow(
+  'Warden voice responses',
+  'voiceResponse',
+  'The outpost confirms commands and warns you during battle'
+)}
           <div class="set-row voice-help-row">
   <div class="set-info">
     <b>Voice Command Codex</b>

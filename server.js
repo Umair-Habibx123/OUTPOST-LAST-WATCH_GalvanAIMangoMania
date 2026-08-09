@@ -128,7 +128,11 @@ app.get('/api/leaderboard', async (request, response) => {
       10
     );
 
-    const limit = Math.max(1, Math.min(rawLimit, 50));
+    const limit =
+  Math.max(
+    1,
+    Math.min(rawLimit, 10)
+  );
 
     const mode =
       typeof request.query.mode === 'string'
@@ -216,7 +220,7 @@ app.post(
             ${entry.wavesCleared},
             ${entry.kills},
             ${entry.perfectWaves},
-            ${entry.score}
+            ${entry.score},
             NOW()
           )
         `,

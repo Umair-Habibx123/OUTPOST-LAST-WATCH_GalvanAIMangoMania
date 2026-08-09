@@ -68,6 +68,13 @@ window.OLW = window.OLW || {};
       this.bannerSub = "";
       this.bannerTimer = 0;
       this.damageThisWave = 0;
+      // ---- tactical voice-state guards ----
+// Prevent wall warnings from repeating every frame.
+this._voiceWallDamaged = false;
+this._voiceCriticalWall = false;
+
+// Prevent repeated game-over announcement.
+this._voiceGameOver = false;
       this.player2Aim = {
   x: CX,
   y: CY + 120,
@@ -559,9 +566,46 @@ strikeAt(ax, ay, playerSlot) {
         ? "They come in force. Hold the line."
         : this.waveSub(plan);
       this.bannerTimer = 2.0;
-      OLW.Audio.waveStart();
-      this.hooks.onWave && this.hooks.onWave(wave, raid);
-      this.emitStats();
+
+OLW.Audio.waveStart();
+
+if (raid) {
+  OLW.Voice?.speak?.(
+    'Heavy assault incoming.',
+    {
+      interrupt: true,
+      rate: 0.9,
+      pitch: 0.74
+    }
+  );
+}
+
+// I would only voice raids, not every normal wave. Otherwise it becomes annoying.
+
+// If later you want occasional milestone announcements, you can do:
+
+// if (raid) {
+//   OLW.Voice?.speak?.(
+//     'Heavy assault incoming.',
+//     { interrupt: true }
+//   );
+// } else if (
+//   wave === 1 ||
+//   wave === 5 ||
+//   wave === 10
+// ) {
+//   OLW.Voice?.speak?.(
+//     `Wave ${wave}. Prepare defenses.`
+//   );
+// }
+
+this.hooks.onWave &&
+  this.hooks.onWave(
+    wave,
+    raid
+  );
+
+this.emitStats();
     }
 
     waveSub(plan) {
@@ -595,6 +639,10 @@ strikeAt(ax, ay, playerSlot) {
           20,
         );
         OLW.Audio.perfect();
+
+OLW.Voice?.speak?.(
+  'Sector clear.'
+);
       } else {
         this.bannerText = `WAVE ${wave} CLEARED`;
         this.bannerSub = "Brace for the next.";
@@ -650,6 +698,29 @@ strikeAt(ax, ay, playerSlot) {
     addFloater(x, y, text, color, size) {
       this.effects.push(new OLW.Floater(x, y, text, color, size));
     }
+
+    updateVoiceWallRecovery() {
+  const pct =
+    (
+      this.integrity /
+      C.INTEGRITY_MAX
+    ) * 100;
+
+  /*
+    Hysteresis prevents chatter if the wall sits near
+    exactly 60 or 30.
+  */
+
+  if (pct > 67) {
+    this._voiceWallDamaged =
+      false;
+  }
+
+  if (pct > 37) {
+    this._voiceCriticalWall =
+      false;
+  }
+}
 
     /* ---- main update ---- */
     update(dt) {
@@ -733,10 +804,19 @@ if (this.wardenShotAnim > 0) {
       }
 
       // end conditions
-      if (this.integrity <= 0) this.gameOver();               // wall fell (attacker wins in versus)
-      else if (this.versus && this.versusTimeLeft <= 0) this.gameOver(); // defender survived
+   // end conditions
+if (this.integrity <= 0) {
+  this.gameOver();
+} else if (
+  this.versus &&
+  this.versusTimeLeft <= 0
+) {
+  this.gameOver();
+}
 
-   this.statsTick += dt;
+this.updateVoiceWallRecovery();
+
+this.statsTick += dt;
 
 if (this.statsTick >= 0.05) {
   this.statsTick = 0;
@@ -745,23 +825,132 @@ if (this.statsTick >= 0.05) {
     }
 
     onRaiderLanded(r) {
-      this.integrity = U.clamp(this.integrity - r.dmg, 0, C.INTEGRITY_MAX);
-      this.damageThisWave += r.dmg;
-      this.breakCombo();
-      this.shake = Math.min(14, this.shake + 6);
-      this.damageFlash = Math.min(1, this.damageFlash + 0.5);
-      // impact particles at the raider's contact point on the elliptical wall
-      const wx = r.x;
-      const wy = r.y;
-      this.spawnSparks(wx, wy, COL.stone, 8);
-      this.addFloater(wx, wy - 8, "-" + r.dmg, COL.danger, 14);
-      OLW.Audio.land();
-    }
+  const beforeIntegrity =
+    this.integrity;
+
+  this.integrity =
+    U.clamp(
+      this.integrity - r.dmg,
+      0,
+      C.INTEGRITY_MAX
+    );
+
+  this.damageThisWave +=
+    r.dmg;
+
+  this.breakCombo();
+
+  this.shake =
+    Math.min(
+      14,
+      this.shake + 6
+    );
+
+  this.damageFlash =
+    Math.min(
+      1,
+      this.damageFlash + 0.5
+    );
+
+  // ---------------------------------------------------------
+  // TACTICAL WALL VOICE
+  // ---------------------------------------------------------
+
+  const integrityPercent =
+    (
+      this.integrity /
+      C.INTEGRITY_MAX
+    ) * 100;
+
+  const beforePercent =
+    (
+      beforeIntegrity /
+      C.INTEGRITY_MAX
+    ) * 100;
+
+  /*
+    60% warning.
+
+    Only trigger when actually crossing downward through
+    the threshold, not every time another raider lands.
+  */
+  if (
+    beforePercent > 60 &&
+    integrityPercent <= 60 &&
+    !this._voiceWallDamaged
+  ) {
+    this._voiceWallDamaged =
+      true;
+
+    OLW.Voice?.speak?.(
+      'Outpost defenses compromised.'
+    );
+  }
+
+  /*
+    30% critical warning.
+
+    Interrupt whatever less-important line is being spoken.
+  */
+  if (
+    beforePercent > 30 &&
+    integrityPercent <= 30 &&
+    !this._voiceCriticalWall
+  ) {
+    this._voiceCriticalWall =
+      true;
+
+    OLW.Voice?.speak?.(
+      'Warning. Wall integrity critical.',
+      {
+        interrupt: true,
+        rate: 0.88,
+        pitch: 0.72
+      }
+    );
+  }
+
+  // impact particles at the raider's contact point
+  const wx = r.x;
+  const wy = r.y;
+
+  this.spawnSparks(
+    wx,
+    wy,
+    COL.stone,
+    8
+  );
+
+  this.addFloater(
+    wx,
+    wy - 8,
+    '-' + r.dmg,
+    COL.danger,
+    14
+  );
+
+  OLW.Audio.land();
+}
 
     gameOver() {
       if (this.state === "over") return;
       this.state = "over";
       OLW.Audio.over();
+      if (!this._voiceGameOver) {
+  this._voiceGameOver = true;
+
+  OLW.Voice?.speak?.(
+    this.versus &&
+    this.integrity > 0
+      ? 'Watch complete.'
+      : 'Outpost lost.',
+    {
+      interrupt: true,
+      rate: 0.84,
+      pitch: 0.68
+    }
+  );
+}
       const result = {
   time: +this.time.toFixed(1),
 
