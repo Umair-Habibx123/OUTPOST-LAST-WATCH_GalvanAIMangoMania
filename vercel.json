@@ -20,6 +20,10 @@
       "dest": "/server.js"
     },
     {
+      "src": "/_vercel/(.*)",
+      "dest": "/_vercel/$1"
+    },
+    {
       "src": "/(.*)",
       "dest": "/server.js"
     }
