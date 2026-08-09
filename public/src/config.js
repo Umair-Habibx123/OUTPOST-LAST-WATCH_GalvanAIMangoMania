@@ -8,7 +8,11 @@ OLW.CONFIG = {
   WIDTH: 960,
   HEIGHT: 540,
 
-  WALL_RADIUS: 112,
+  // The fort wall in the map art is an ISOMETRIC ellipse (wider than tall), so
+  // the play boundary is an ellipse too: WALL_RADIUS is the horizontal half-axis
+  // and WALL_RADIUS_Y the vertical one. Keeps the ring + landings on the art wall.
+  WALL_RADIUS: 138,
+  WALL_RADIUS_Y: 92,
   TOWER_RADIUS: 30,
 
   INTEGRITY_MAX: 100,

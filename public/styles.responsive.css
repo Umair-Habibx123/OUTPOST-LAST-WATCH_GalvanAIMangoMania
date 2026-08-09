@@ -221,41 +221,15 @@ body {
 }
 
 /* --------------------------------------------------------------------------
-   GAMEPLAY BOTTOM CONTROL ZONE
+   GAMEPLAY CONTROL ZONE
 
-   The item row sits above the weapon row.
-   The dock stays clear of Quit / Volley / Sound / Pause.
+   Quick-use lives on the LEFT/RIGHT edge rails (see arsenal injected CSS).
+   Utility buttons stay in the corners: volley bottom-left; pause / sound /
+   quit bottom-right; wall integrity bottom-centre.
    -------------------------------------------------------------------------- */
-
-.ars-dock {
-  bottom:
-    max(
-      62px,
-      calc(env(safe-area-inset-bottom, 0px) + 58px)
-    ) !important;
-
-  width:
-    min(
-      900px,
-      calc(100vw - 170px)
-    ) !important;
-
-  max-height: 118px;
-
-  overflow: visible;
-}
 
 .ars-bar,
 .ars-items {
-  max-width: 100%;
-
-  flex-wrap: nowrap !important;
-
-  justify-content: center;
-
-  overflow-x: auto;
-  overflow-y: hidden;
-
   scrollbar-width: none;
 }
 
@@ -264,24 +238,10 @@ body {
   display: none;
 }
 
-.ars-w,
-.ars-item {
-  flex: 0 0 auto;
-}
-
 .volley-wrap {
   bottom:
     max(
-      10px,
-      env(safe-area-inset-bottom, 0px)
-    ) !important;
-}
-
-.ars-quit {
-  left: 12px !important;
-  bottom:
-    max(
-      12px,
+      14px,
       env(safe-area-inset-bottom, 0px)
     ) !important;
 }
@@ -297,6 +257,16 @@ body {
 
 .mute-btn {
   right: 54px !important;
+  bottom:
+    max(
+      12px,
+      env(safe-area-inset-bottom, 0px)
+    ) !important;
+}
+
+.ars-quit {
+  right: 96px !important;
+  left: auto !important;
   bottom:
     max(
       12px,

@@ -41,7 +41,7 @@ OLW.Device = (function () {
     return {
       stash: 0, unlocked: ['sidearm'], ammo: {}, items: {}, upgrades: {}, weaponLevels: {},
       xp: 0, level: 1, settings: {},
-      loadout: 'sidearm', map: 'frontier', bestScore: 0, name: '',
+      loadout: 'sidearm', map: 'frontier', bestScore: 0, name: '', company: '',
     };
   }
 
@@ -84,6 +84,7 @@ OLW.Device = (function () {
         profile: {
           settings: prefs.settings,
           name: prefs.name,
+          company: prefs.company,
           loadout: prefs.loadout,
           map: prefs.map,
         },
@@ -102,7 +103,7 @@ OLW.Device = (function () {
     // non-economy prefs (settings/name/loadout/map). Economy fields are ignored.
     patch(delta) {
       const clean = {};
-      ['settings', 'name', 'loadout', 'map'].forEach(k => { if (k in delta) clean[k] = delta[k]; });
+      ['settings', 'name', 'company', 'loadout', 'map'].forEach(k => { if (k in delta) clean[k] = delta[k]; });
       if (Object.keys(clean).length) queuePrefs(clean);
     },
 

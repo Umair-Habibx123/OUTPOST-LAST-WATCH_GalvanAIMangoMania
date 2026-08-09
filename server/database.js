@@ -26,6 +26,16 @@ export async function verifyDatabaseConnection() {
 }
 
 /**
+ * Idempotent schema top-ups applied on startup, so a live database gains new
+ * columns without a manual migration. Safe to run repeatedly.
+ */
+export async function applyMigrations() {
+  await sql`ALTER TABLE leaderboard_entries ALTER COLUMN display_name TYPE VARCHAR(120)`;
+  await sql`ALTER TABLE leaderboard_entries ADD COLUMN IF NOT EXISTS company VARCHAR(60)`;
+  await sql`ALTER TABLE leaderboard_entries ADD COLUMN IF NOT EXISTS player_name VARCHAR(60)`;
+}
+
+/**
  * Delete rooms that expired before the current time.
  */
 export async function removeExpiredRooms() {

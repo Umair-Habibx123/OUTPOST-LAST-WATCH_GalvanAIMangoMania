@@ -15,6 +15,7 @@ import { createServer } from 'node:http';
 import { Server } from 'socket.io';
 
 import {
+  applyMigrations,
   removeExpiredRooms,
   sql,
   verifyDatabaseConnection
@@ -143,6 +144,8 @@ app.get('/api/leaderboard', async (request, response) => {
       SELECT
         id,
         display_name AS "displayName",
+        company,
+        player_name AS "playerName",
         mode,
         map_id AS "mapId",
         score,
@@ -221,6 +224,8 @@ app.post(
             id,
             match_id,
             display_name,
+            company,
+            player_name,
             mode,
             map_id,
             score,
@@ -233,6 +238,8 @@ app.post(
             ${leaderboardId},
             ${matchId},
             ${entry.displayName},
+            ${entry.company || null},
+            ${entry.playerName || null},
             ${entry.mode},
             ${entry.mapId},
             ${entry.score},
@@ -295,6 +302,95 @@ app.delete('/api/admin/leaderboard', async (request, response) => {
   }
 });
 
+// Full export of EVERY recorded game (not just today's top ten) as CSV, so the
+// event host can download the complete history. Admin-secret protected; the
+// secret may be given as the x-admin-secret header or a ?secret= query param so
+// it can be opened straight from a browser.
+function csvCell(value) {
+  if (value === null || value === undefined) return '';
+  const text = String(value);
+  return /[",\n\r]/.test(text)
+    ? `"${text.replace(/"/g, '""')}"`
+    : text;
+}
+
+app.get('/api/admin/leaderboard.csv', async (request, response) => {
+  const providedSecret =
+    request.header('x-admin-secret') ||
+    (typeof request.query.secret === 'string' ? request.query.secret : '');
+  const expectedSecret = process.env.ADMIN_SECRET;
+
+  if (!expectedSecret || providedSecret !== expectedSecret) {
+    response.status(403).json({ ok: false, message: 'Forbidden.' });
+    return;
+  }
+
+  try {
+    const day =
+      typeof request.query.day === 'string' && request.query.day
+        ? request.query.day
+        : null;
+
+    const rows = await sql`
+      SELECT
+        created_at,
+        event_day,
+        company,
+        player_name,
+        display_name,
+        mode,
+        map_id,
+        score,
+        waves_cleared,
+        kills,
+        duration_seconds,
+        device_id,
+        id
+      FROM leaderboard_entries
+      WHERE (${day}::date IS NULL OR event_day = ${day}::date)
+      ORDER BY created_at DESC
+    `;
+
+    const header = [
+      'created_at', 'event_day', 'company', 'player_name', 'display_name',
+      'mode', 'map_id', 'score', 'waves_cleared', 'kills',
+      'duration_seconds', 'device_id', 'id'
+    ];
+
+    const lines = [header.join(',')];
+    for (const row of rows) {
+      lines.push([
+        csvCell(row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at),
+        csvCell(row.event_day instanceof Date ? row.event_day.toISOString().slice(0, 10) : row.event_day),
+        csvCell(row.company),
+        csvCell(row.player_name),
+        csvCell(row.display_name),
+        csvCell(row.mode),
+        csvCell(row.map_id),
+        csvCell(row.score),
+        csvCell(row.waves_cleared),
+        csvCell(row.kills),
+        csvCell(row.duration_seconds),
+        csvCell(row.device_id),
+        csvCell(row.id)
+      ].join(','));
+    }
+
+    const csv = '﻿' + lines.join('\r\n') + '\r\n';
+    const stamp = new Date().toISOString().slice(0, 10);
+
+    response.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    response.setHeader(
+      'Content-Disposition',
+      `attachment; filename="outpost-leaderboard-${stamp}.csv"`
+    );
+    response.send(csv);
+  } catch (error) {
+    console.error('Leaderboard export failed', error);
+    response.status(500).json({ ok: false, message: 'Unable to export the leaderboard.' });
+  }
+});
+
 // ================= per-device player profile (SERVER-AUTHORITATIVE) =================
 // The browser holds ONLY its device id. All coins/unlocks/ammo/upgrades live here
 // and are mutated only through validated endpoints, so a tampered client can't
@@ -342,6 +438,7 @@ app.post('/api/profile', async (request, response) => {
     const profile = await loadProfile(deviceId);
     if (incoming.settings && typeof incoming.settings === 'object') profile.settings = incoming.settings;
     if (typeof incoming.name === 'string') profile.name = incoming.name.slice(0, 40);
+    if (typeof incoming.company === 'string') profile.company = incoming.company.slice(0, 40);
     if (typeof incoming.loadout === 'string') profile.loadout = incoming.loadout;
     if (typeof incoming.map === 'string') profile.map = incoming.map;
     await saveProfile(deviceId, profile);
@@ -413,6 +510,7 @@ async function initializeServer() {
       `Connected to Neon database: ${database.database_name}`
     );
 
+    await applyMigrations();
     await removeExpiredRooms();
   } catch (error) {
     console.error('Server initialization failed', error);

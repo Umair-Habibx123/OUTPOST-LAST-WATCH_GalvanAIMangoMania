@@ -548,7 +548,7 @@ strikeAt(ax, ay, playerSlot) {
             : `Bonus +${C.SCORE_PERFECT_WAVE}.`;
         this.addFloater(
           CX,
-          CY - C.WALL_RADIUS - 24,
+          CY - C.WALL_RADIUS_Y - 24,
           "PERFECT",
           COL.torchCore,
           20,
@@ -692,10 +692,9 @@ if (this.statsTick >= 0.05) {
       this.breakCombo();
       this.shake = Math.min(14, this.shake + 6);
       this.damageFlash = Math.min(1, this.damageFlash + 0.5);
-      // impact particles at the wall point
-      const a = U.angleTo(CX, CY, r.x, r.y);
-      const wx = CX + Math.cos(a) * C.WALL_RADIUS;
-      const wy = CY + Math.sin(a) * C.WALL_RADIUS;
+      // impact particles at the raider's contact point on the elliptical wall
+      const wx = r.x;
+      const wy = r.y;
       this.spawnSparks(wx, wy, COL.stone, 8);
       this.addFloater(wx, wy - 8, "-" + r.dmg, COL.danger, 14);
       OLW.Audio.land();

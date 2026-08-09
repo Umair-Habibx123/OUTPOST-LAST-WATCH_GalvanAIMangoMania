@@ -60,7 +60,14 @@ Create a room → a **QR code / room code** lets a second player join **on their
 
 ## Leaderboard
 
-`The Watch Roll` — per-event-day top scores from Neon (`/api/leaderboard`). Host reset via `DELETE /api/admin/leaderboard` with the `x-admin-secret` header.
+`The Watch Roll` — the in-game board shows the **top 10** of the current event day from Neon (`/api/leaderboard`). Every finished run is recorded with a timestamp, so the database keeps the full history even though only ten show in-game.
+
+Players sign the roll as **`[Company name] - [Player name]`** (both optional). A score is saved automatically on any exit from the game-over screen **unless** the player taps *Continue without saving*.
+
+**Host tools** (need `ADMIN_SECRET` in the env):
+
+- **Export every game as CSV:** open `GET /api/admin/leaderboard.csv?secret=YOUR_SECRET` in a browser (or send the secret via the `x-admin-secret` header). Add `&day=YYYY-MM-DD` to limit to one event day; omit for the complete history. Columns: `created_at, event_day, company, player_name, display_name, mode, map_id, score, waves_cleared, kills, duration_seconds, device_id, id`.
+- **Reset today's board:** `DELETE /api/admin/leaderboard` with the `x-admin-secret` header.
 
 ## Project layout
 

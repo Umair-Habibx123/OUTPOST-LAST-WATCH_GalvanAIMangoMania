@@ -65,7 +65,17 @@ OLW.Leaderboard = (function () {
         displayName:
           String(entry.name || entry.displayName || 'Guard')
             .trim()
-            .slice(0, 20) || 'Guard',
+            .slice(0, 100) || 'Guard',
+
+        company:
+          String(entry.company || '')
+            .trim()
+            .slice(0, 40) || undefined,
+
+        playerName:
+          String(entry.playerName || '')
+            .trim()
+            .slice(0, 40) || undefined,
 
         mode: entry.mode || 'solo',
         mapId: entry.mapId || 'frontier',

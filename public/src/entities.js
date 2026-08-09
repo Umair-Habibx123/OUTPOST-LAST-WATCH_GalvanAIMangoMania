@@ -52,8 +52,11 @@ window.OLW = window.OLW || {};
       this.x -= dirx * this.speed * dt;
       this.y -= diry * this.speed * dt;
       if (this.hitFlash > 0) this.hitFlash -= dt;
-      const d = U.dist(this.x, this.y, CX, CY);
-      if (d <= C.WALL_RADIUS + this.r * 0.4) {
+      // elliptical wall: normalised distance <= 1 means the raider reached it.
+      // the +r term lets bigger raiders make contact slightly sooner.
+      const nx = (this.x - CX) / (C.WALL_RADIUS + this.r * 0.4);
+      const ny = (this.y - CY) / (C.WALL_RADIUS_Y + this.r * 0.4);
+      if (nx * nx + ny * ny <= 1) {
         this.landed = true;
         this.alive = false;
         this.deadTimer = 0; // landed raiders vanish immediately

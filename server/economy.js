@@ -15,10 +15,11 @@ export const WEAPONS = {
 };
 
 export const CONSUMABLES = {
-  supply:   { cost: 60,  base: 1, perLevel: 0.5 },
-  rally:    { cost: 120, base: 1, perLevel: 0.34 },
-  warhound: { cost: 160, base: 1, perLevel: 0.25 },
-  dragon:   { cost: 300, base: 0, perLevel: 0.2 },
+  supply:       { cost: 60,  base: 1, perLevel: 0.5 },
+  weaponSupply: { cost: 90,  base: 1, perLevel: 0.4 },   // reloads all owned guns
+  rally:        { cost: 120, base: 1, perLevel: 0.34 },
+  warhound:     { cost: 160, base: 1, perLevel: 0.25 },
+  dragon:       { cost: 300, base: 0, perLevel: 0.2 },
 };
 
 export const UPGRADES = {
@@ -50,7 +51,7 @@ export function defaults() {
   return {
     stash: 0, unlocked: ['sidearm'], ammo: {}, items: {}, upgrades: {}, weaponLevels: {},
     xp: 0, level: 1, settings: {},
-    loadout: 'sidearm', map: 'frontier', bestScore: 0, name: '',
+    loadout: 'sidearm', map: 'frontier', bestScore: 0, name: '', company: '',
   };
 }
 

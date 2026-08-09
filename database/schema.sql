@@ -129,6 +129,17 @@ ALTER TABLE leaderboard_entries
 CREATE INDEX IF NOT EXISTS leaderboard_device_idx
     ON leaderboard_entries(device_id);
 
+-- Event naming convention: "[Company name] - [Player name]". display_name keeps
+-- the combined label; company / player_name keep the parts for CSV export.
+ALTER TABLE leaderboard_entries
+    ALTER COLUMN display_name TYPE VARCHAR(120);
+
+ALTER TABLE leaderboard_entries
+    ADD COLUMN IF NOT EXISTS company VARCHAR(60);
+
+ALTER TABLE leaderboard_entries
+    ADD COLUMN IF NOT EXISTS player_name VARCHAR(60);
+
 
 -- Persistent per-device player profile (coins, level, unlocks, ammo, settings).
 -- The whole evolving profile is stored as JSONB and keyed by the browser's

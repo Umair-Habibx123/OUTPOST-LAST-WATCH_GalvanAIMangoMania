@@ -71,7 +71,9 @@ button {
     height: 100%;
     display: block;
     touch-action: none;
-    cursor: crosshair
+    /* the in-game reticle IS the aim cursor — hide the OS pointer over the
+       field so the two don't clash. UI buttons keep their own pointer cursor. */
+    cursor: none
 }
 
 .hidden {
@@ -331,6 +333,60 @@ button {
     line-height: 1.45
 }
 
+/* briefing: coin economy explainer */
+.brief-coins {
+    margin-top: 16px;
+    padding: 16px 18px;
+    border: 1px solid rgba(240, 190, 90, 0.28);
+    border-radius: 10px;
+    background:
+        linear-gradient(160deg, rgba(60, 46, 18, 0.35), rgba(18, 20, 26, 0.5))
+}
+
+.brief-coins-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 8px;
+    font-size: 15px;
+    color: var(--sand)
+}
+
+.brief-coin-mark {
+    color: var(--amber);
+    font-size: 18px
+}
+
+.brief-coins-lead,
+.brief-coins-foot {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.5
+}
+
+.brief-coin-list {
+    margin: 10px 0;
+    padding-left: 18px;
+    display: grid;
+    gap: 4px
+}
+
+.brief-coin-list li {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.4
+}
+
+.brief-coin-list b {
+    color: var(--amber)
+}
+
+.brief-coins-foot {
+    margin-top: 8px;
+    font-style: italic
+}
+
 .back-btn {
     margin-top: 7px
 }
@@ -463,7 +519,13 @@ button {
 
 .name-row {
     display: flex;
-    gap: 8px
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px
+}
+
+.name-row .skip-score-btn {
+    margin-top: 0
 }
 
 .name-row input {
@@ -478,6 +540,53 @@ button {
 
 .name-row input:focus {
     border-color: var(--amber)
+}
+
+/* two-part name: [Company] - [Player] */
+.name-fields {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px
+}
+
+.name-fields input {
+    flex: 1;
+    min-width: 0;
+    padding: 12px 14px;
+    color: var(--sand);
+    background: #0b0e13;
+    border: 1px solid var(--line);
+    outline: none
+}
+
+.name-fields input:focus {
+    border-color: var(--amber)
+}
+
+.name-sep {
+    color: var(--muted);
+    font-weight: 700;
+    flex: 0 0 auto
+}
+
+.save-status {
+    margin: 10px 0 0;
+    min-height: 16px;
+    font-size: 12.5px;
+    text-align: center
+}
+
+.save-status.ok {
+    color: #8bd48b
+}
+
+.save-status.err {
+    color: #f0a58c
+}
+
+.save-status.muted {
+    color: var(--muted)
 }
 
 .over-actions {
@@ -496,25 +605,42 @@ button {
     pointer-events: none
 }
 
-.hud-top {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 10px
-}
-
-.hud-block {
+/* corners-only HUD: wave top-left, time/score top-right, integrity bottom.
+   the play field between stays clear so raiders are never hidden. */
+.hud-tl {
+    position: absolute;
+    top: clamp(9px, 2vmin, 17px);
+    left: clamp(9px, 2vmin, 17px);
     display: flex;
     flex-direction: column;
+    gap: 2px
+}
+
+.hud-tr {
+    position: absolute;
+    top: clamp(9px, 2vmin, 17px);
+    right: clamp(9px, 2vmin, 17px);
+    display: flex;
+    gap: 16px;
+    align-items: flex-start
+}
+
+.hud-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px
+}
+
+.hud-bottom {
+    position: absolute;
+    left: 50%;
+    bottom: clamp(8px, 1.6vmin, 14px);
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     gap: 3px
-}
-
-.hud-center {
-    align-items: center
-}
-
-.hud-right {
-    align-items: flex-end
 }
 
 .hud-label {
@@ -546,7 +672,7 @@ button {
 
 .wave-tag {
     font-family: Georgia, serif;
-    font-size: clamp(18px, 3vmin, 25px);
+    font-size: clamp(15px, 2.4vmin, 21px);
     font-weight: 900;
     text-shadow: 0 2px 6px #000
 }
@@ -558,38 +684,43 @@ button {
 }
 
 .hud-big {
-    font-size: clamp(20px, 3.5vmin, 28px);
+    font-size: clamp(15px, 2.6vmin, 21px);
     font-weight: 900;
     line-height: 1
 }
 
-.score-label {
-    margin-top: 4px
-}
-
-.score-label b {
+.hud-score {
     color: var(--gold);
-    font-size: 14px
+    font-size: clamp(16px, 2.6vmin, 22px);
+    font-weight: 900;
+    line-height: 1
 }
 
 .ghost-btn {
     position: absolute;
-    right: 15px;
+    right: 12px;
     bottom: 15px;
     z-index: 8;
     pointer-events: auto;
+    display: grid;
+    place-items: center;
     height: 34px;
+    min-width: 34px;
+    padding: 0 9px;
     border: 1px solid var(--line);
     background: rgba(10, 13, 18, .8);
     color: var(--sand);
     cursor: pointer;
-    font-size: 10px;
-    font-weight: 900
+    font-size: 12px;
+    font-weight: 900;
+    border-radius: 7px
 }
 
 .mute-btn {
-    right: 57px;
-    padding: 0 12px
+    right: 52px;
+    width: 34px;
+    padding: 0;
+    font-size: 15px
 }
 
 .combo-pill {
@@ -618,10 +749,9 @@ button {
 
 .volley-wrap {
     position: absolute;
-    left: 50%;
+    left: 14px;
     bottom: 14px;
-    z-index: 8;
-    transform: translateX(-50%)
+    z-index: 8
 }
 
 .volley-btn {
@@ -629,10 +759,11 @@ button {
     pointer-events: auto;
     display: flex;
     align-items: center;
-    gap: 9px;
-    min-width: 160px;
-    padding: 8px 13px;
+    gap: 8px;
+    min-width: 0;
+    padding: 7px 11px;
     overflow: hidden;
+    border-radius: 7px;
     color: var(--sand);
     background: rgba(10, 13, 18, .88);
     border: 1px solid #575044;
@@ -672,10 +803,9 @@ button {
     display: block
 }
 
+/* compact in-game volley: hide the long label, keep the charge readout */
 .volley-copy b {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: .8px
+    display: none
 }
 
 .volley-copy small {

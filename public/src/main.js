@@ -156,17 +156,25 @@ if (
 
   async function onGameOver(res) {
     lastResult = res;
+    res._saved = false;
+    res._skipped = false;
     $('res-time').textContent = res.time + 's';
     $('res-waves').textContent = res.waves;
     $('res-kills').textContent = res.kills;
     $('res-score').textContent = res.score;
     const rank = await OLW.Leaderboard.rankOf(res.score);
     $('res-rank').textContent = rank <= 10 ? `Provisional rank #${rank} — sign the roll to claim it.` : `You reached rank #${rank}. Another watch could break the top ten.`;
+    // Name entry + actions are shown together: the score is saved automatically on
+    // any exit UNLESS the guard explicitly taps "Continue without saving".
     $('name-entry').classList.remove('hidden');
-    $('over-actions').classList.add('hidden');
+    $('over-actions').classList.remove('hidden');
+    $('save-status').textContent = '';
+    $('save-status').className = 'save-status';
+    $('btn-save-score').disabled = false;
+    $('company-input').value = OLW.Device?.profile?.company || '';
     $('name-input').value = '';
     showScreen('over');
-    setTimeout(() => $('name-input').focus(), 100);
+    setTimeout(() => $('company-input').focus(), 100);
   }
 
   /* ---------- input: aim + strike ---------- */
@@ -230,6 +238,10 @@ if (
       }
       return true;
     }
+
+    // Closing the game-over screen (X / Esc / backdrop) counts as "keep my
+    // score" — only "Continue without saving" opts out.
+    if (visible === 'over') commitScoreIfNeeded();
 
     showScreen('title');
     return true;
@@ -350,9 +362,8 @@ $('volley-btn').addEventListener('click', () => {
 $('mute-btn').addEventListener('click', () => {
   const muted = OLW.Audio.toggle();
 
-  $('mute-btn').textContent = muted
-    ? 'SOUND OFF'
-    : 'SOUND ON';
+  $('mute-btn').textContent = muted ? '🔇' : '🔊';
+  $('mute-btn').title = muted ? 'Sound off' : 'Sound on';
 });
 
 /* ---------- multiplayer buttons ---------- */
@@ -383,18 +394,20 @@ $('btn-save-score').addEventListener(
   saveScore
 );
 
-$('name-input').addEventListener('keydown', (event) => {
-  if (event.key === 'Enter') {
-    saveScore();
-  }
+['company-input', 'name-input'].forEach((id) => {
+  $(id).addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') saveScore();
+  });
 });
 
-$('btn-retry').addEventListener('click', () => {
+$('btn-retry').addEventListener('click', async () => {
+  await commitScoreIfNeeded();
   enterGameUI();
   game.start();
 });
 
-$('btn-menu').addEventListener('click', () => {
+$('btn-menu').addEventListener('click', async () => {
+  await commitScoreIfNeeded();
   showScreen('title');
 });
 
@@ -403,38 +416,67 @@ $('btn-settings-launch')?.addEventListener(
   () => OLW.Settings?.open?.()
 );
 
+// Explicit opt-out: the ONLY path that discards the score.
 $('btn-skip-score')
   ?.addEventListener(
     'click',
     () => {
-      $('name-entry')
-        .classList.add('hidden');
-
-      $('over-actions')
-        .classList.remove('hidden');
+      if (!lastResult) return;
+      lastResult._skipped = true;
+      $('btn-save-score').disabled = true;
+      const s = $('save-status');
+      s.textContent = 'Score not saved.';
+      s.className = 'save-status muted';
     }
   );
 
-  async function saveScore() {
-    if (!lastResult) return;
-    const name =
-  ($('name-input').value || '')
-    .trim() ||
-  'Anonymous Guard';
-    await OLW.Leaderboard.submit({
-  name,
-  mode: OLW.Multiplayer?.mode || 'solo',
-  mapId: OLW.Multiplayer?.mapId || 'frontier',
+  // Build "[Company] - [Player]" per the event's naming convention. Both parts
+  // are optional; falls back sensibly when one or both are blank.
+  function buildDisplayName() {
+    const company = ($('company-input').value || '').trim().slice(0, 40);
+    const player = ($('name-input').value || '').trim().slice(0, 24);
+    if (company && player) return `${company} - ${player}`;
+    if (company) return `${company} - Guard`;
+    if (player) return player;
+    return 'Anonymous Guard';
+  }
 
-  score: lastResult.score,
-  time: lastResult.time,
-  waves: lastResult.waves,
-  kills: lastResult.kills,
-  perfectWaves: lastResult.perfectWaves
-});
-    $('name-entry').classList.add('hidden');
-    $('over-actions').classList.remove('hidden');
-    lastResult._saved = true;
+  // Save the run unless it was already saved or the guard opted out. Called on
+  // every exit from the game-over screen (retry / menu / close / Esc).
+  async function commitScoreIfNeeded() {
+    if (!lastResult || lastResult._saved || lastResult._skipped) return;
+    await saveScore();
+  }
+
+  async function saveScore() {
+    if (!lastResult || lastResult._saved || lastResult._skipped) return;
+    lastResult._saved = true; // guard against double-submit / rapid clicks
+    const company = ($('company-input').value || '').trim().slice(0, 40);
+    const player = ($('name-input').value || '').trim().slice(0, 24);
+    // remember the company so the next run pre-fills it
+    if (company && OLW.Device?.patch) OLW.Device.patch({ company });
+    const s = $('save-status');
+    try {
+      await OLW.Leaderboard.submit({
+        name: buildDisplayName(),
+        company,
+        playerName: player,
+        mode: OLW.Multiplayer?.mode || 'solo',
+        mapId: OLW.Multiplayer?.mapId || 'frontier',
+        score: lastResult.score,
+        time: lastResult.time,
+        waves: lastResult.waves,
+        kills: lastResult.kills,
+        perfectWaves: lastResult.perfectWaves
+      });
+      $('btn-save-score').disabled = true;
+      s.textContent = 'Saved to the Watch Roll ✓';
+      s.className = 'save-status ok';
+    } catch (err) {
+      lastResult._saved = false; // let them retry
+      s.textContent = 'Could not save — tap Save Score to retry.';
+      s.className = 'save-status err';
+    }
   }
 
   async function renderScores() {

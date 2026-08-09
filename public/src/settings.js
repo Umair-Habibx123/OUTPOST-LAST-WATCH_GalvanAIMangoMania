@@ -13,7 +13,7 @@ OLW.Settings = (function () {
 
   const CONTROLMODES = [
     { id: 'device', name: 'Mouse / Keys' },
-    { id: 'assist', name: 'AI aim-assist' },
+    // { id: 'assist', name: 'AI aim-assist' },
     { id: 'gesture', name: 'Hand (cam)' },
     { id: 'face', name: 'Face + blink (cam)' },
     { id: 'voice', name: 'Voice (mic)' },
@@ -48,7 +48,11 @@ OLW.Settings = (function () {
     if (OLW.Audio) OLW.Audio.setMuted(!S.get('sound'));
     if (OLW.Music) OLW.Music.setMuted(!S.get('sound'));
     const mute = document.getElementById('mute-btn');
-    if (mute) mute.textContent = S.get('sound') ? 'SOUND ON' : 'SOUND OFF';
+    if (mute) {
+      const on = S.get('sound');
+      mute.textContent = on ? '🔊' : '🔇';
+      mute.title = on ? 'Sound on' : 'Sound off';
+    }
   }
 
   /* ---------- reticle styles (wrap Render.reticle) ---------- */

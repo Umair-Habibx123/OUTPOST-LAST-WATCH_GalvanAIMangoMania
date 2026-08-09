@@ -47,12 +47,12 @@ OLW.Arsenal = (function () {
 
  // NOTE: keys/costs mirror server/economy.js (server is authoritative).
  const UPGRADES = [
-  { key: 'armour',    icon: 'armour',     name: 'Warden Armour', max: 4, cost: [200, 400, 700, 1100], desc: '-10% wall damage taken per level.' },
-  { key: 'reload',    icon: null,         name: 'Rapid Reload',  max: 4, cost: [180, 360, 620, 980],  desc: '-6% fire cooldown per level (all weapons).' },
-  { key: 'fieldKit',  icon: null,         name: 'Field Kit',     max: 3, cost: [220, 460, 760],       desc: '+20% supply heal & ally strength per level.' },
-  { key: 'wallMend',  icon: null,         name: 'Wall Mender',   max: 3, cost: [200, 420, 700],       desc: '+4 perfect-wave repair per level.' },
-  { key: 'coinGain',  icon: 'coinrunner', name: 'Coin Runners',  max: 3, cost: [150, 300, 500],       desc: '+15% coins earned per level.' },
-  { key: 'startCoins', icon: 'warchest',  name: 'War Chest',     max: 3, cost: [120, 240, 400],       desc: '+80 starting run-coins per level.' }
+  { key: 'armour',    icon: 'armour-ic',     name: 'Warden Armour', max: 4, cost: [200, 400, 700, 1100], desc: '-10% wall damage taken per level.' },
+  { key: 'reload',    icon: 'reload-ic',     name: 'Rapid Reload',  max: 4, cost: [180, 360, 620, 980],  desc: '-6% fire cooldown per level (all weapons).' },
+  { key: 'fieldKit',  icon: 'fieldkit-ic',   name: 'Field Kit',     max: 3, cost: [220, 460, 760],       desc: '+20% supply heal & ally strength per level.' },
+  { key: 'wallMend',  icon: 'wallmender-ic', name: 'Wall Mender',   max: 3, cost: [200, 420, 700],       desc: '+4 perfect-wave repair per level.' },
+  { key: 'coinGain',  icon: 'coinrunner-ic', name: 'Coin Runners',  max: 3, cost: [150, 300, 500],       desc: '+15% coins earned per level.' },
+  { key: 'startCoins', icon: 'warchest-ic',  name: 'War Chest',     max: 3, cost: [120, 240, 400],       desc: '+80 starting run-coins per level.' }
 ];
 
   // level-gated unlocks — mirrors server/economy.js WEAPONS.minLevel
@@ -67,6 +67,7 @@ OLW.Arsenal = (function () {
 
   const CONSUMABLES = [
     { id: 'supply', key: 'z', name: 'Supply Line', tag: 'Repair', cost: 60, base: 1, perLevel: 0.5, desc: 'Restores +28 wall integrity instantly.' },
+    { id: 'weaponSupply', icon: 'supply', key: 'b', name: 'Weapon Supply', tag: 'Ammo', cost: 90, base: 1, perLevel: 0.4, desc: 'Reloads a full clip into every purchased weapon.' },
     { id: 'rally', key: 'x', name: 'Backup Team', tag: 'Allies', cost: 120, base: 1, perLevel: 0.34, desc: 'Deploy two allied guards. Their life drains under combat pressure until the team is lost.' },
     { id: 'warhound', key: 'c', name: 'War Beast', tag: 'Beast', cost: 160, base: 1, perLevel: 0.25, desc: 'Unleash an armoured war beast. It fights until its life is exhausted.' },
     { id: 'dragon', key: 'v', name: 'Dragon Strike', tag: 'Ultimate', cost: 300, base: 0, perLevel: 0.2, desc: 'Call an ember dragon that makes repeated attack runs while its life holds.' }
@@ -82,7 +83,14 @@ OLW.Arsenal = (function () {
   };
 
   // Upgrade art uses its own filenames (optimised webp copies).
-  const UP_ICON = { armour: 'armour-ic.webp', coinGain: 'coinrunner-ic.webp', startCoins: 'warchest-ic.webp' };
+  const UP_ICON = {
+    armour: 'armour-ic.webp',
+    reload: 'reload-ic.webp',
+    fieldKit: 'fieldkit-ic.webp',
+    wallMend: 'wallmender-ic.webp',
+    coinGain: 'coinrunner-ic.webp',
+    startCoins: 'warchest-ic.webp',
+  };
   const upIconImg = (key) => {
     const f = UP_ICON[key];
     return f ? `<img class="ars-ic" src="assets/art/icons/${f}" loading="lazy" decoding="async" draggable="false" alt="" onerror="this.remove()">` : '';
@@ -338,11 +346,33 @@ OLW.Arsenal = (function () {
       }
 
       g.addFloater(
-        CX, CY - C.WALL_RADIUS - 26,
+        CX, CY - C.WALL_RADIUS_Y - 26,
         `${healed > 0 ? `SUPPLY +${healed}` : 'SUPPLY'}${ammoMessage}`,
         COL.mango, 18
       );
       g.spawnSparks(CX, CY, COL.mango, 18, 200);
+      OLW.Audio?.mango?.();
+
+    } else if (id === 'weaponSupply') {
+      // Reload a full clip into every purchased (non-starter) weapon, up to cap.
+      const guns = WEAPONS.filter((w) => !w.starter && A.owned(w));
+      let total = 0, reloaded = 0;
+      for (const w of guns) {
+        const cap = ammoCap(w);
+        const have = A.runAmmo(w.id);
+        if (have >= cap) continue;
+        const gain = Math.min(cap - have, w.clip || 1);
+        A._run[w.id] = have + gain;
+        total += gain;
+        reloaded += 1;
+      }
+      if (reloaded) renderBar();
+      g.addFloater(
+        CX, CY - C.WALL_RADIUS_Y - 26,
+        total > 0 ? `WEAPON SUPPLY · +${total} AMMO` : 'WEAPON SUPPLY · ALL FULL',
+        COL.mango, 18
+      );
+      g.spawnSparks(CX, CY, COL.mango, 16, 200);
       OLW.Audio?.mango?.();
 
     } else if (id === 'rally') {
@@ -815,14 +845,17 @@ OLW.Arsenal = (function () {
     elCoins = el('div', 'ars-coins hidden', '<span class="ars-lv" id="ars-lv">Lv 1</span><span class="ars-coin-ico">◎</span><b id="ars-coin-val">0</b>');
     stage.appendChild(elCoins);
 
-    // A single bottom dock stacks the items row above the weapons row, so they
-    // can never overlap no matter how many are owned or how they wrap.
-    const dock = el('div', 'ars-dock');
-    elItems = el('div', 'ars-items hidden');
-    elBar = el('div', 'ars-bar hidden');
-    dock.appendChild(elItems);
-    dock.appendChild(elBar);
-    stage.appendChild(dock);
+    // Quick-use lives on the screen EDGES so the play field stays clear:
+    // weapons on the left rail, consumables on the right rail. Both are compact
+    // icon buttons (icon + shortcut key + count), vertically centred.
+    const leftRail = el('div', 'ars-rail ars-rail-left');
+    const rightRail = el('div', 'ars-rail ars-rail-right');
+    elBar = el('div', 'ars-bar hidden');       // weapons -> left
+    elItems = el('div', 'ars-items hidden');    // consumables -> right
+    leftRail.appendChild(elBar);
+    rightRail.appendChild(elItems);
+    stage.appendChild(leftRail);
+    stage.appendChild(rightRail);
 
     elQuit = el('button', 'ghost-btn ars-quit hidden', 'QUIT');
     elQuit.title = 'Abandon the watch (coins are kept)';
@@ -849,7 +882,8 @@ OLW.Arsenal = (function () {
       slot.innerHTML =
         `<span class="ars-w-key">${w.key}</span>` +
         iconImg(w.id, 'ars-w-ic') +
-        `<span class="ars-w-body"><b>${w.name}</b><small>${w.starter ? w.tag : `▮ ${ammo}`}</small></span>`;
+        `<span class="ars-w-body"><small>${w.starter ? '∞' : ammo}</small></span>` +
+        `<span class="ars-slot-name">${w.name}</span>`;
 
       slot.title = w.desc;
       slot.onclick = () => A.equip(w.id);
@@ -868,8 +902,9 @@ OLW.Arsenal = (function () {
       const slot = el('button', 'ars-item');
       slot.innerHTML =
         `<span class="ars-item-key">${c.key.toUpperCase()}</span>` +
-        iconImg(c.id, 'ars-item-ic') +
-        `<span class="ars-item-body"><b>${c.name}</b><small>×${count}</small></span>`;
+        iconImg(c.icon || c.id, 'ars-item-ic') +
+        `<span class="ars-item-body"><small>×${count}</small></span>` +
+        `<span class="ars-slot-name">${c.name}</span>`;
       slot.title = c.desc;
       slot.onclick = () => A.useItem(c.id);
       elItems.appendChild(slot);
@@ -905,7 +940,7 @@ OLW.Arsenal = (function () {
       node.classList.toggle('empty', empty);
 
       const small = node.querySelector('.ars-w-body small');
-      if (small && !w.starter) small.textContent = `▮ ${A.runAmmo(w.id)}`;
+      if (small && !w.starter) small.textContent = `${A.runAmmo(w.id)}`;
     }
   }
 
@@ -1105,6 +1140,24 @@ OLW.Arsenal = (function () {
     processPurchaseQueue();
   }
 
+  // Repeat a purchase optimistically until it can't succeed (full / unaffordable),
+  // queueing each step so the server applies the same count. Used by "Fill".
+  function queueFillPurchase(kind, id, sound) {
+    let count = 0;
+    while (optimisticPurchase(kind, id)) {
+      purchaseQueue.push({ kind, id });
+      count++;
+    }
+    if (!count) {
+      A.bump();
+      OLW.Audio?.strike?.();
+      return;
+    }
+    (sound || OLW.Audio?.mango || function () {})();
+    window.dispatchEvent(new CustomEvent('olw:profilesync', { detail: { optimistic: true } }));
+    processPurchaseQueue();
+  }
+
   function renderShop() {
     const p = D.profile;
     const prog = levelProgress(p.xp || 0);
@@ -1143,9 +1196,15 @@ OLW.Arsenal = (function () {
       const wl = weaponLevel(w.id);
       const canUp = wl < WUP.max && p.stash >= wupCost(wl);
       const ammoBar = `<div class="ars-ammo"><div class="ars-ammo-fill" style="width:${Math.min(100, (have / cap) * 100)}%"></div></div><small>${have}/${cap} rounds${wl > 0 ? ` · Lv ${wl}` : ''}</small>`;
+      const clipsToFull = Math.max(1, Math.ceil((cap - have) / w.clip));
+      const fillCost = clipsToFull * w.clipCost;
       const ammoBtn = full
         ? '<span class="ars-tag-owned">Full</span>'
         : `<button class="ars-buy${canAmmo ? '' : ' dis'}" data-ammo="${w.id}">+${w.clip} ◎${w.clipCost}</button>`;
+      // one-click "buy clips until full" (or as many as affordable)
+      const fillBtn = full || clipsToFull <= 1
+        ? ''
+        : `<button class="ars-buy ars-buy-fill${canAmmo ? '' : ' dis'}" data-fill="${w.id}" title="Buy clips until full">Fill ◎${fillCost}</button>`;
       const upBtn = wl >= WUP.max
         ? '<span class="ars-tag-owned">Lv MAX</span>'
         : `<button class="ars-buy ars-buy-alt${canUp ? '' : ' dis'}" data-wup="${w.id}">Upgrade Lv ${wl + 1} ◎${wupCost(wl)}</button>`;
@@ -1153,13 +1212,13 @@ OLW.Arsenal = (function () {
       return row(
         `${w.name} <em>${w.tag}${wl > 0 ? ` · Lv ${wl}` : ''}</em>`,
         ammoBar,
-        `<div class="ars-actions">${ammoBtn}${upBtn}</div>`,
+        `<div class="ars-actions">${ammoBtn}${fillBtn}${upBtn}</div>`,
         icon
       );
     }).join('');
 
     const consumableRows = CONSUMABLES.map((c) => {
-      const icon = iconImg(c.id);
+      const icon = iconImg(c.icon || c.id);
       const limit = itemLimit(c);
       const have = p.items[c.id] || 0;
 
@@ -1251,6 +1310,7 @@ OLW.Arsenal = (function () {
     };
     elShop.querySelectorAll('[data-unlock]').forEach((b) => { b.onclick = () => buy(b, 'unlock', b.dataset.unlock); });
     elShop.querySelectorAll('[data-ammo]').forEach((b) => { b.onclick = () => buy(b, 'ammo', b.dataset.ammo, () => OLW.Audio?.hit?.()); });
+    elShop.querySelectorAll('[data-fill]').forEach((b) => { b.onclick = () => { if (b.classList.contains('dis')) return; queueFillPurchase('ammo', b.dataset.fill, () => OLW.Audio?.hit?.()); }; });
     elShop.querySelectorAll('[data-wup]').forEach((b) => { b.onclick = () => buy(b, 'weaponUpgrade', b.dataset.wup); });
     elShop.querySelectorAll('[data-item]').forEach((b) => { b.onclick = () => buy(b, 'item', b.dataset.item, () => OLW.Audio?.hit?.()); });
     elShop.querySelectorAll('[data-up]').forEach((b) => { b.onclick = () => buy(b, 'upgrade', b.dataset.up); });
@@ -1325,30 +1385,40 @@ function afterBuy() {
     const style = el('style');
     style.id = 'ars-css';
     style.textContent = `
-      .ars-coins{position:absolute;top:clamp(9px,2vmin,17px);left:50%;transform:translateX(-50%);z-index:6;display:flex;align-items:center;gap:7px;padding:4px 12px;background:rgba(10,13,18,.82);border:1px solid #4a4436;border-radius:20px;color:var(--gold,#f5c36b);font-weight:900;pointer-events:none;transition:transform .1s}
-      .ars-coins.flash{transform:translateX(-50%) scale(1.15);color:#fff}
+      /* Lv + coins: top-left, tucked just under the wave counter */
+      .ars-coins{position:absolute;top:52px;left:clamp(9px,2vmin,17px);transform-origin:left center;z-index:6;display:flex;align-items:center;gap:7px;padding:3px 10px;background:rgba(10,13,18,.82);border:1px solid #4a4436;border-radius:20px;color:var(--gold,#f5c36b);font-weight:900;pointer-events:none;transition:transform .1s}
+      .ars-coins.flash{transform:scale(1.14);color:#fff}
       .ars-lv{font-size:10px;letter-spacing:1px;color:#e9dfcb;background:rgba(255,255,255,.08);padding:1px 7px;border-radius:10px}
       .ars-coin-ico{font-size:13px}
-      .ars-dock{position:absolute;left:50%;bottom:66px;transform:translateX(-50%);z-index:6;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;width:96%;max-width:920px}
-      .ars-bar{display:flex;gap:6px;pointer-events:auto;flex-wrap:wrap;justify-content:center;max-width:100%}
-      .ars-w{display:flex;align-items:center;gap:7px;padding:6px 11px 6px 7px;background:rgba(10,13,18,.85);border:1px solid #3b3b44;color:#e9dfcb;cursor:pointer;border-radius:4px;transition:.12s}
+
+      /* quick-use side rails: weapons left, consumables right, vertically centred */
+      .ars-rail{position:absolute;top:50%;transform:translateY(-50%);z-index:6;display:flex;flex-direction:column;gap:8px;pointer-events:none;max-height:84vh}
+      .ars-rail-left{left:clamp(6px,1.4vmin,14px)}
+      .ars-rail-right{right:clamp(6px,1.4vmin,14px)}
+      .ars-bar,.ars-items{display:flex;flex-direction:column;gap:8px;pointer-events:auto;overflow-y:auto;overflow-x:hidden;max-height:84vh;scrollbar-width:none}
+      .ars-bar::-webkit-scrollbar,.ars-items::-webkit-scrollbar{display:none}
+
+      /* square icon buttons; key badge top-left, count badge bottom-right */
+      .ars-w,.ars-item{position:relative;width:clamp(48px,7vmin,64px);height:clamp(48px,7vmin,64px);display:grid;place-items:center;padding:0;background:rgba(10,13,18,.85);border:1px solid #3b3b44;color:#e9dfcb;cursor:pointer;border-radius:10px;transition:.12s}
       .ars-w:hover{border-color:#8a8270}
       .ars-w.cur{border-color:var(--amber,#e8a13a);box-shadow:0 0 14px rgba(232,161,58,.35);background:rgba(40,32,16,.9)}
-      .ars-w.empty{opacity:.45}
-      .ars-w.empty .ars-w-body small{color:#c5543f}
-      .ars-w-key{display:grid;place-items:center;width:20px;height:20px;border:1px solid #6c6457;border-radius:3px;font-size:11px;font-weight:900}
-      .ars-w-ic{width:22px;height:22px;object-fit:contain;flex:none}
-      .ars-w-body{display:flex;flex-direction:column;text-align:left;line-height:1.1}
-      .ars-w-body b{font-size:11px}.ars-w-body small{font-size:9px;color:var(--gold,#f5c36b)}
-
-      .ars-items{display:flex;gap:6px;pointer-events:auto;flex-wrap:wrap;justify-content:center;max-width:100%}
-      .ars-item{display:flex;align-items:center;gap:6px;padding:5px 10px 5px 6px;background:rgba(18,14,20,.85);border:1px solid #4a3b52;color:#e9dfcb;cursor:pointer;border-radius:4px;transition:.12s}
+      .ars-w.empty{opacity:.5}
+      .ars-w.empty .ars-w-body small{color:#c5543f;border-color:#c5543f}
+      .ars-item{background:rgba(18,14,20,.85);border-color:#4a3b52}
       .ars-item:hover{border-color:#b07fd0}
-      .ars-item-key{display:grid;place-items:center;width:19px;height:19px;border:1px solid #7a6c86;border-radius:3px;font-size:10px;font-weight:900}
-      .ars-item-ic{width:20px;height:20px;object-fit:contain;flex:none}
-      .ars-item-body{display:flex;flex-direction:column;text-align:left;line-height:1.05}
-      .ars-item-body b{font-size:10.5px}.ars-item-body small{font-size:9px;color:#c9a7e0}
-      .ars-quit{right:auto!important;left:15px;bottom:15px;padding:0 12px;z-index:8}
+      .ars-w-ic,.ars-item-ic{width:74%;height:74%;object-fit:contain}
+      .ars-w-key,.ars-item-key{position:absolute;top:-6px;left:-6px;z-index:2;display:grid;place-items:center;width:18px;height:18px;font-size:10px;font-weight:900;border-radius:5px;background:rgba(10,13,18,.96);border:1px solid #6c6457}
+      .ars-item-key{border-color:#7a6c86}
+      .ars-w-body,.ars-item-body{position:absolute;right:-6px;bottom:-6px;z-index:2}
+      .ars-w-body small,.ars-item-body small{display:block;min-width:20px;height:17px;padding:0 5px;line-height:15px;text-align:center;font-size:10px;font-weight:900;border-radius:9px;background:rgba(10,13,18,.96);border:1px solid #4a4436;color:var(--gold,#f5c36b)}
+      .ars-item-body small{border-color:#4a3b52;color:#d8b8ee}
+      /* the icons are small — reveal the full name as a flyout on hover */
+      .ars-slot-name{position:absolute;top:50%;transform:translateY(-50%);white-space:nowrap;padding:5px 10px;font-size:12px;font-weight:800;letter-spacing:.3px;color:#f0e6d2;background:rgba(10,13,18,.97);border:1px solid #5a5344;border-radius:7px;opacity:0;pointer-events:none;transition:opacity .1s;z-index:30;box-shadow:0 6px 18px rgba(0,0,0,.5)}
+      .ars-rail-left .ars-slot-name{left:calc(100% + 9px)}
+      .ars-rail-right .ars-slot-name{right:calc(100% + 9px)}
+      .ars-item .ars-slot-name{border-color:#6b5a78}
+      .ars-w:hover .ars-slot-name,.ars-item:hover .ars-slot-name{opacity:1}
+      .ars-quit{right:96px!important;left:auto;bottom:15px;padding:0 12px;z-index:8}
 
       .ars-shop{position:absolute;inset:0;z-index:70;display:grid;place-items:center;padding:clamp(8px,2vmin,22px);background:rgba(4,6,9,.88);backdrop-filter:blur(9px)}
       .ars-shop-panel{width:min(760px,96vw);height:min(760px,94dvh);max-height:calc(100dvh - 18px);display:flex;flex-direction:column;overflow:hidden;padding:clamp(15px,2.5vmin,28px);border:1px solid rgba(255,255,255,.11);border-radius:7px;background:linear-gradient(155deg,rgba(34,39,47,.99),rgba(11,14,19,.995));box-shadow:0 30px 100px rgba(0,0,0,.7)}
@@ -1377,6 +1447,7 @@ function afterBuy() {
       .ars-ammo{height:5px;background:rgba(255,255,255,.1);border-radius:3px;overflow:hidden;margin-bottom:3px;max-width:180px}.ars-ammo-fill{height:100%;background:var(--amber,#e8a13a)}
       .ars-actions{display:flex;flex-direction:column;gap:5px;align-items:flex-end}
       .ars-buy-alt{background:linear-gradient(180deg,#8ec3f5,#3a78c4)!important;color:#0b1626!important}
+      .ars-buy-fill{background:linear-gradient(180deg,#9ad48b,#4f9a37)!important;color:#0d1a07!important}
       .ars-confirm{position:absolute;inset:0;z-index:50;display:none;place-items:center;background:rgba(4,6,9,.74);backdrop-filter:blur(3px)}
       .ars-confirm-box{width:min(430px,90%);padding:24px;background:linear-gradient(165deg,rgba(40,44,50,.98),rgba(14,18,24,.99));border:1px solid #3b3b44;text-align:center;color:#e9dfcb;box-shadow:0 24px 70px rgba(0,0,0,.6)}
       .ars-confirm-box h3{margin:0 0 10px;font-size:21px;color:#f2d9a6}
@@ -1386,19 +1457,16 @@ function afterBuy() {
       .ars-shop-close{flex:none;margin-top:14px}
 
       @media(max-width:650px){
-        .ars-dock{bottom:58px;gap:6px}.ars-bar{gap:4px}.ars-w{padding:4px 6px;gap:4px}.ars-w-body b{font-size:9px}.ars-w-body small{font-size:8px}.ars-w-key{width:17px;height:17px}.ars-w-ic{width:18px;height:18px}.ars-items{gap:4px}.ars-item{padding:4px 6px}.ars-item-body b{font-size:9px}
+        .ars-rail{gap:6px}.ars-bar,.ars-items{gap:6px}.ars-w,.ars-item{width:44px;height:44px;border-radius:8px}
         .ars-shop{padding:0}.ars-shop-panel{width:100vw;height:100dvh;max-height:none;border:0;border-radius:0;padding:14px}
         .ars-shop-row{grid-template-columns:68px minmax(0,1fr);min-height:78px}.ars-card-art{width:68px;height:62px}.ars-shop-action{grid-column:2;justify-content:flex-start;width:100%}.ars-buy{width:100%;padding:8px}
       }
 
       @media(max-height:540px) and (orientation:landscape){
-        .ars-dock{bottom:46px;gap:5px;width:94vw}
-        .ars-bar,.ars-items{gap:3px;flex-wrap:nowrap;overflow-x:auto;max-width:94vw}
-        .ars-w,.ars-item{padding:3px 5px}
-        .ars-w-body b,.ars-item-body b{font-size:8px}
-        .ars-w-body small,.ars-item-body small{font-size:7px}
-        .ars-w-key,.ars-item-key{width:16px;height:16px;font-size:8px}
-        .ars-w-ic,.ars-item-ic{width:17px;height:17px}
+        .ars-rail,.ars-bar,.ars-items{gap:5px;max-height:90vh}
+        .ars-w,.ars-item{width:38px;height:38px}
+        .ars-w-key,.ars-item-key{width:15px;height:15px;font-size:8px}
+        .ars-w-body small,.ars-item-body small{min-width:16px;height:14px;line-height:12px;font-size:8px}
         .ars-shop{padding:5px}.ars-shop-panel{width:min(920px,98vw);height:calc(100dvh - 10px);padding:11px 14px}.ars-shop-title{font-size:22px}.ars-shop-sub{margin:5px 0 7px;font-size:9px}.ars-lvbar{margin-top:6px}
         .ars-shop-row{min-height:65px;grid-template-columns:62px 1fr auto}.ars-card-art{width:62px;height:52px}.ars-shop-scroll h4{margin:8px 0 5px}.ars-shop-close{margin-top:7px;padding:8px}
       }

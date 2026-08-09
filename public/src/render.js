@@ -113,7 +113,8 @@ window.OLW = window.OLW || {};
       ctx.setLineDash([4, 8]);
       ctx.lineDashOffset = -time * 10;
       ctx.beginPath();
-      ctx.arc(0, 0, C.WALL_RADIUS, 0, U.TAU * integrity01);
+      // isometric ellipse ring so it hugs the map's oval stone wall
+      ctx.ellipse(0, 0, C.WALL_RADIUS, C.WALL_RADIUS_Y, 0, 0, U.TAU * integrity01);
       ctx.stroke();
       ctx.setLineDash([]);
       ctx.restore();

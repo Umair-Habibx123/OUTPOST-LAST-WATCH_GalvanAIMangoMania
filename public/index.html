@@ -48,29 +48,28 @@
       <div id="stage">
         <canvas id="game"></canvas>
         <div id="hud" class="hidden">
-          <div class="hud-row hud-top">
-            <div class="hud-block">
-              <span class="hud-label">Wall integrity</span>
-              <div class="bar">
-                <div id="integrity-fill" class="bar-fill"></div>
-              </div>
-              <span id="integrity-text" class="integrity-text">100%</span>
+          <!-- top-left: wave number (level + coins get docked just below) -->
+          <div class="hud-tl">
+            <span id="wave-tag" class="wave-tag">Wave 1</span>
+            <span id="wave-sub" class="wave-sub"></span>
+          </div>
+
+          <!-- top-right: time held + score -->
+          <div class="hud-tr">
+            <div class="hud-stat">
+              <span class="hud-label">Time held</span>
+              <span id="time-val" class="hud-big">0.0</span>
             </div>
-            <div class="hud-block hud-center">
-              <span id="wave-tag" class="wave-tag">Wave 1</span
-              ><span id="wave-sub" class="wave-sub"></span>
-            </div>
-            <div class="hud-block hud-right">
-              <span class="hud-label">Time held</span
-              ><span id="time-val" class="hud-big">0.0</span
-              ><span class="hud-label score-label"
-                >Score <b id="score-val">0</b></span
-              >
+            <div class="hud-stat">
+              <span class="hud-label">Score</span>
+              <b id="score-val" class="hud-score">0</b>
             </div>
           </div>
+
           <div id="combo-pill" class="combo-pill hidden">
             <span id="combo-val">x2</span><small>streak</small>
           </div>
+
           <div class="volley-wrap">
             <button
               id="volley-btn"
@@ -85,6 +84,16 @@
               ><span id="volley-fill" class="volley-fill"></span>
             </button>
           </div>
+
+          <!-- bottom-center: wall integrity (moved down out of the play area) -->
+          <div class="hud-bottom">
+            <span class="hud-label">Wall integrity</span>
+            <div class="bar">
+              <div id="integrity-fill" class="bar-fill"></div>
+            </div>
+            <span id="integrity-text" class="integrity-text">100%</span>
+          </div>
+
           <button id="pause-btn" class="ghost-btn" aria-label="Pause">
             II
           </button>
@@ -92,8 +101,9 @@
             id="mute-btn"
             class="ghost-btn mute-btn"
             aria-label="Toggle sound"
+            title="Toggle sound"
           >
-            SOUND ON
+            🔊
           </button>
         </div>
 
@@ -365,6 +375,23 @@
                   <p>Stop the mango cart for a rare repair and score boost.</p>
                 </div>
               </div>
+
+              <div class="brief-coins">
+                <p class="brief-coins-lead">
+                  Coins are earned by playing and banked to your device. Spend
+                  them in the <b>Armory</b> between runs on weapons, ammo,
+                  consumables and permanent upgrades.
+                </p>
+                <ul class="brief-coin-list">
+                  <li><b>+8</b> per raider stopped</li>
+                  <li><b>+50</b> per perfect wave (no wall damage)</li>
+                  <li><b>+30</b> per mango supply cart caught</li>
+                  <li><b>Coin Runners</b> upgrade: +15% coins earned per level</li>
+                  <li><b>War Chest</b> upgrade: +80 bonus coins at the start of each run</li>
+                </ul>
+        
+              </div>
+
               <button class="primary-btn back-btn" data-back>
                 Ready for the watch
               </button>
@@ -414,37 +441,47 @@
   id="name-entry"
   class="name-entry"
 >
-  <label for="name-input">
-    Add a guard name
+  <label for="company-input">
+    Sign the roll
     <span class="optional-label">
-      Optional
+      Company &amp; player — optional
     </span>
   </label>
 
-  <div class="name-row">
+  <div class="name-fields">
+    <input
+      id="company-input"
+      maxlength="40"
+      placeholder="Company name"
+      autocomplete="organization"
+    />
+    <span class="name-sep">—</span>
     <input
       id="name-input"
-      maxlength="14"
-      placeholder="Anonymous Guard"
+      maxlength="24"
+      placeholder="Player name"
       autocomplete="off"
     />
+  </div>
 
+  <div class="name-row">
     <button
       id="btn-save-score"
       class="primary-btn small"
     >
       Save Score
     </button>
+    <button
+      id="btn-skip-score"
+      class="link-btn skip-score-btn"
+    >
+      Continue without saving
+    </button>
   </div>
 
-  <button
-    id="btn-skip-score"
-    class="link-btn skip-score-btn"
-  >
-    Continue without saving
-  </button>
+  <p id="save-status" class="save-status" aria-live="polite"></p>
 </div>
-              <div id="over-actions" class="over-actions hidden">
+              <div id="over-actions" class="over-actions">
                 <button id="btn-retry" class="primary-btn">
                   Take the Watch Again</button
                 ><button id="btn-menu" class="link-btn">
@@ -480,5 +517,6 @@
     <script src="src/controls-ai.js"></script>
     <script src="src/music.js"></script>
     <script src="src/main.js"></script>
+    <script src="src/holdfire.js"></script>
   </body>
 </html>

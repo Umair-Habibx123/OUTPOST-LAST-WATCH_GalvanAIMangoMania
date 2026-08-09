@@ -73,11 +73,24 @@ export const controllerStrikeSchema = z.object({
 });
 
 export const leaderboardSubmissionSchema = z.object({
+  // "[Company] - [Player]" — combined label shown on the board.
   displayName: z
     .string()
     .trim()
     .min(1)
-    .max(20),
+    .max(100),
+
+  company: z
+    .string()
+    .trim()
+    .max(40)
+    .optional(),
+
+  playerName: z
+    .string()
+    .trim()
+    .max(40)
+    .optional(),
 
   mode: z.enum(['solo', 'coop', 'versus']),
 
