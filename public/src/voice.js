@@ -14,7 +14,73 @@
   transcript. That removes most of the noticeable command delay.
 */
 
-const VOICE_COMMANDS = [
+
+window.OLW = window.OLW || {};
+
+OLW.Voice = (function () {
+  const SpeechRecognition =
+    window.SpeechRecognition ||
+    window.webkitSpeechRecognition;
+
+  const SpeechGrammarList =
+    window.SpeechGrammarList ||
+    window.webkitSpeechGrammarList;
+
+  let recognition = null;
+
+  let running = false;
+  let starting = false;
+  let wantOn = false;
+
+  let restartTimer = null;
+
+  let toastEl = null;
+  let toastTimer = null;
+
+  // Prevent one spoken phrase from activating the same command multiple times
+  // as interim recognition gets progressively refined.
+  let lastCommandId = '';
+  let lastCommandAt = 0;
+
+  // Short enough to feel immediate, long enough to block interim duplicates.
+  const COMMAND_COOLDOWN = 650;
+
+  const game = () => window.OLW_GAME;
+
+  function useItem(id) {
+    if (!OLW.Arsenal || typeof OLW.Arsenal.useItem !== 'function') {
+      return false;
+    }
+
+    return OLW.Arsenal.useItem(id);
+  }
+
+  function equipWeapon(id) {
+    if (!OLW.Arsenal || typeof OLW.Arsenal.equip !== 'function') {
+      return false;
+    }
+
+    return OLW.Arsenal.equip(id);
+  }
+
+  function useVolley() {
+    const g = game();
+
+    if (!g || g.state !== 'playing' || typeof g.useVolley !== 'function') {
+      return false;
+    }
+
+    return g.useVolley();
+  }
+
+  /*
+    Keep VOICE_COMMANDS short and distinctive.
+
+    Put field-kit VOICE_COMMANDS first so e.g. "weapon supply" is not accidentally
+    caught by a generic weapon-related phrase.
+  */
+
+    const VOICE_COMMANDS = [
   {
     id: 'dragon',
     title: 'Dragon Strike',
@@ -106,7 +172,8 @@ const VOICE_COMMANDS = [
       'Patch Wall',
       'Mend Wall'
     ],
-    re: /\b(supply line|wall supply|repair wall|repair|supplies|supply|mango|patch wall|mend wall)\b/i,
+    re:
+/\b(supply line|wall supply|repair wall|supplies|supply|mango|patch wall|mend wall)\b/i,
     act: () => useItem('supply')
   },
 
@@ -121,7 +188,8 @@ const VOICE_COMMANDS = [
       'Volley',
       'Signal'
     ],
-    re: /\b(signal volley|fire volley|volley|signal)\b/i,
+    re:
+/\b(signal volley|fire volley|volley)\b/i,
     act: useVolley
   },
 
@@ -145,11 +213,9 @@ const VOICE_COMMANDS = [
     category: 'Weapon',
     phrases: [
       'Repeater',
-      'Rapid Rifle',
-      'Rapid',
-      'Rifle'
+      'Rapid Rifle'
     ],
-    re: /\b(repeater|rapid rifle|rapid|rifle)\b/i,
+    re: /\b(repeater|rapid rifle)\b/i,
     act: () => equipWeapon('repeater')
   },
 
@@ -209,71 +275,6 @@ const VOICE_COMMANDS = [
     act: () => equipWeapon('tesla')
   }
 ];
-
-window.OLW = window.OLW || {};
-
-OLW.Voice = (function () {
-  const SpeechRecognition =
-    window.SpeechRecognition ||
-    window.webkitSpeechRecognition;
-
-  const SpeechGrammarList =
-    window.SpeechGrammarList ||
-    window.webkitSpeechGrammarList;
-
-  let recognition = null;
-
-  let running = false;
-  let starting = false;
-  let wantOn = false;
-
-  let restartTimer = null;
-
-  let toastEl = null;
-  let toastTimer = null;
-
-  // Prevent one spoken phrase from activating the same command multiple times
-  // as interim recognition gets progressively refined.
-  let lastCommandId = '';
-  let lastCommandAt = 0;
-
-  // Short enough to feel immediate, long enough to block interim duplicates.
-  const COMMAND_COOLDOWN = 850;
-
-  const game = () => window.OLW_GAME;
-
-  function useItem(id) {
-    if (!OLW.Arsenal || typeof OLW.Arsenal.useItem !== 'function') {
-      return false;
-    }
-
-    return OLW.Arsenal.useItem(id);
-  }
-
-  function equipWeapon(id) {
-    if (!OLW.Arsenal || typeof OLW.Arsenal.equip !== 'function') {
-      return false;
-    }
-
-    return OLW.Arsenal.equip(id);
-  }
-
-  function useVolley() {
-    const g = game();
-
-    if (!g || g.state !== 'playing' || typeof g.useVolley !== 'function') {
-      return false;
-    }
-
-    return g.useVolley();
-  }
-
-  /*
-    Keep VOICE_COMMANDS short and distinctive.
-
-    Put field-kit VOICE_COMMANDS first so e.g. "weapon supply" is not accidentally
-    caught by a generic weapon-related phrase.
-  */
 
   function normalise(text) {
     return String(text || '')
@@ -434,10 +435,16 @@ OLW.Voice = (function () {
         result = false;
       }
 
-      if (result === false) {
-        toast(command.label + ' unavailable', 'error');
+           if (result === false) {
+        toast(
+          command.title + ' unavailable',
+          'error'
+        );
       } else {
-        toast(command.label, 'ok');
+        toast(
+          command.callout || command.title,
+          'ok'
+        );
       }
 
       return true;
@@ -463,27 +470,20 @@ OLW.Voice = (function () {
     if (!SpeechGrammarList) return;
 
     try {
-      const words = [
-        'dragon',
-        'dracarys',
-        'war beast',
-        'backup team',
-        'weapon supply',
-        'supply',
-        'signal volley',
-        'sidearm',
-        'repeater',
-        'scattergun',
-        'shotgun',
-        'siege cannon',
-        'mortar',
-        'tesla coil'
-      ];
+    const words = [
+  ...new Set(
+    VOICE_COMMANDS.flatMap(
+      command => command.phrases
+    )
+  )
+];
 
       const grammar =
-        '#JSGF V1.0; grammar commands; public <command> = ' +
-        words.join(' | ') +
-        ' ;';
+  '#JSGF V1.0; grammar commands; public <command> = ' +
+  words
+    .map(word => word.toLowerCase())
+    .join(' | ') +
+  ' ;';
 
       const list = new SpeechGrammarList();
       list.addFromString(grammar, 1);
@@ -762,13 +762,16 @@ OLW.Voice = (function () {
   let guideOverlay = null;
 
 function escapeVoiceHtml(value) {
-  return String(value).replace(/[&<>"']/g, (char) => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;'
-  })[char]);
+  return String(value).replace(
+    /[&<>"']/g,
+    (char) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    })[char]
+  );
 }
 
 function ensureGuideCss() {
