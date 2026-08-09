@@ -3390,3 +3390,69 @@ and
     height: 34px;
   }
 }
+
+.remote-watch {
+  width: 100%;
+  flex: none;
+
+  background:
+    rgba(7, 9, 12, .88);
+
+  border:
+    1px solid
+    rgba(232, 161, 58, .22);
+}
+
+.remote-watch-head {
+  height: 28px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding:
+    0 10px;
+
+  color:
+    #e8a13a;
+
+  font-size:
+    8px;
+
+  font-weight:
+    900;
+
+  letter-spacing:
+    1.5px;
+}
+
+.remote-watch-head small {
+  color:
+    #777267;
+
+  font-size:
+    8px;
+}
+
+.remote-watch-screen {
+  width: 100%;
+
+  aspect-ratio:
+    16 / 9;
+
+  overflow: hidden;
+
+  background:
+    #07090d;
+}
+
+#remote-game-preview {
+  display: block;
+
+  width: 100%;
+  height: 100%;
+
+  object-fit: cover;
+
+  pointer-events: none;
+}

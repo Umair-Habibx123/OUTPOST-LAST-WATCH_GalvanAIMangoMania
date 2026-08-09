@@ -284,6 +284,27 @@ OLW.Multiplayer = (function () {
       });
     },
 
+    sendMatchPreview(image) {
+  if (
+    !socket ||
+    !state.roomCode ||
+    state.mode === 'solo' ||
+    !image
+  ) {
+    return;
+  }
+
+  socket.volatile.emit(
+    'match:preview',
+    {
+      roomCode:
+        state.roomCode,
+
+      image
+    }
+  );
+},
+
     notifyMatchEnded(result) {
       if (
         !socket ||

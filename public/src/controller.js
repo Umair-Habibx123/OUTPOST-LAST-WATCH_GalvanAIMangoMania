@@ -122,14 +122,72 @@
 
   // versus → this phone is the ATTACKER: swap the aim/fire controls for the
   // spawn ring. Any other mode keeps the defender/co-op aim controls.
-  function applyControllerMode(room) {
-    attackerMode = (room && room.mode === 'versus');
-    if (attackerPanel) attackerPanel.classList.toggle('hidden', !attackerMode);
-    if (aimControls) aimControls.classList.toggle('hidden', attackerMode);
-    if (defenderActions) defenderActions.classList.toggle('hidden', attackerMode);
-    const wl = document.querySelector('.controller-stat:nth-child(2) span');
-    if (wl && attackerMode) wl.textContent = 'Hold';
+ function applyControllerMode(
+  room
+) {
+  const mode =
+    room?.mode ||
+    'coop';
+
+  attackerMode =
+    mode === 'versus';
+
+  const soloPhone =
+    mode === 'solophone';
+
+  /*
+   * VERSUS
+   * Phone becomes attacker.
+   */
+  attackerPanel?.classList.toggle(
+    'hidden',
+    !attackerMode
+  );
+
+  /*
+   * COOP + SOLOPHONE
+   * Phone aims and fires.
+   */
+  aimControls?.classList.toggle(
+    'hidden',
+    attackerMode
+  );
+
+  defenderActions?.classList.toggle(
+    'hidden',
+    attackerMode
+  );
+
+  const waveLabel =
+    document.querySelector(
+      '.controller-stat:nth-child(2) span'
+    );
+
+  if (waveLabel) {
+    waveLabel.textContent =
+      attackerMode
+        ? 'Hold'
+        : 'Wave';
   }
+
+  /*
+   * Useful body classes for CSS.
+   */
+  document.body.classList.toggle(
+    'controller-versus',
+    attackerMode
+  );
+
+  document.body.classList.toggle(
+    'controller-solo-phone',
+    soloPhone
+  );
+
+  document.body.classList.toggle(
+    'controller-coop',
+    mode === 'coop'
+  );
+}
 
   socket.on('match:started', (payload) => {
     if (
@@ -189,6 +247,24 @@
         ? 'Volley Ready'
         : `Volley ${charge}/12`;
   });
+
+  socket.on(
+  'match:preview',
+  payload => {
+    const image =
+      document.getElementById(
+        'remote-game-preview'
+      );
+
+    if (
+      image &&
+      payload?.image
+    ) {
+      image.src =
+        payload.image;
+    }
+  }
+);
 
   socket.on('match:ended', () => {
     matchActive = false;

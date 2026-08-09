@@ -16,6 +16,28 @@ let lastMultiplayerStatsSent = 0;
 let selectedRoomMode = 'coop';
 let soloPhoneStarted = false;   // guard so auto-start fires once per solo-phone room
 
+let lastPreviewSent =
+  0;
+
+const previewCanvas =
+  document.createElement(
+    'canvas'
+  );
+
+previewCanvas.width =
+  320;
+
+previewCanvas.height =
+  180;
+
+const previewCtx =
+  previewCanvas.getContext(
+    '2d',
+    {
+      alpha: false
+    }
+  );
+
   /* ---------- screen manager ---------- */
   const screenEls = {
     title: $('screen-title'),
@@ -220,6 +242,43 @@ if (
     player2Charge: s.player2Charge
   });
 }
+if (
+  OLW.Multiplayer.mode !==
+    'solo' &&
+  now - lastPreviewSent >=
+    350
+) {
+  lastPreviewSent =
+    now;
+
+  try {
+    previewCtx.drawImage(
+      canvas,
+      0,
+      0,
+      320,
+      180
+    );
+
+    const preview =
+      previewCanvas.toDataURL(
+        'image/webp',
+        0.38
+      );
+
+    OLW.Multiplayer
+      .sendMatchPreview?.(
+        preview
+      );
+
+  } catch (error) {
+    /*
+      Preview is non-essential.
+      Never interrupt the game.
+    */
+  }
+}
+
   }
 async function recordCompletedWatch(result) {
   if (!result) return null;

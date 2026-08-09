@@ -369,6 +369,53 @@ export function configureSockets(io) {
       });
     });
 
+    socket.on(
+  'match:preview',
+  ({ roomCode, image }) => {
+    const normalized =
+      String(
+        roomCode || ''
+      )
+        .trim()
+        .toUpperCase();
+
+    const room =
+      getInternalRoom(
+        normalized
+      );
+
+    /*
+      Only host may send game imagery.
+    */
+    if (
+      !room ||
+      room.hostSocketId !==
+        socket.id ||
+      room.status !== 'active'
+    ) {
+      return;
+    }
+
+    if (
+      typeof image !== 'string' ||
+      image.length >
+        100000
+    ) {
+      return;
+    }
+
+    socket
+      .to(normalized)
+      .volatile
+      .emit(
+        'match:preview',
+        {
+          image
+        }
+      );
+  }
+);
+
     socket.on('match:ended', async ({ roomCode, result }) => {
       const normalized = String(roomCode || '')
         .trim()
