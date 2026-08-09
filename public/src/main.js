@@ -14,6 +14,7 @@
 let roomCreationInProgress = false;
 let lastMultiplayerStatsSent = 0;
 let selectedRoomMode = 'coop';
+let soloPhoneStarted = false;   // guard so auto-start fires once per solo-phone room
 
   /* ---------- screen manager ---------- */
   const screenEls = {
@@ -41,6 +42,46 @@ let selectedRoomMode = 'coop';
     if (window.gsap) gsap.fromTo(hud, { autoAlpha: 0 }, { autoAlpha: 1, duration: .45 });
   }
 
+  /* ---------- loading gate: don't drop into the field until art is decoded ---
+     Fixes the mobile "start then everything is stuck while images stream in"
+     feeling. Shows a progress overlay; starts as soon as assets settle, with a
+     safety timeout so the booth kiosk never hard-blocks. */
+  let loadEl = null, loadTimer = null;
+  function showLoadingOverlay() {
+    if (!loadEl) {
+      if (!document.getElementById('load-css')) {
+        const st = document.createElement('style'); st.id = 'load-css';
+        st.textContent = '#load-overlay{position:absolute;inset:0;z-index:80;display:grid;place-items:center;background:radial-gradient(circle at 50% 40%,#12161d,#070a0e);color:#e9dfcb}#load-overlay .lo-box{display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center;padding:20px}#load-overlay .lo-title{font-family:Georgia,serif;font-size:clamp(18px,3vmin,26px);color:#f5c36b}#load-overlay .lo-track{width:min(260px,60vw);height:6px;border-radius:3px;background:rgba(255,255,255,.1);overflow:hidden}#load-overlay .lo-fill{height:100%;width:0;background:linear-gradient(90deg,#f5c36b,#e8a13a);transition:width .2s}#load-overlay .lo-sub{font-size:11px;color:#9e988b;letter-spacing:2px;text-transform:uppercase}';
+        document.head.appendChild(st);
+      }
+      loadEl = document.createElement('div'); loadEl.id = 'load-overlay';
+      loadEl.innerHTML = '<div class="lo-box"><div class="lo-title">Preparing the outpost…</div><div class="lo-track"><div class="lo-fill" id="lo-fill"></div></div><div class="lo-sub" id="lo-pct">Loading 0%</div></div>';
+      (document.getElementById('stage') || document.body).appendChild(loadEl);
+    }
+    loadEl.style.display = 'grid';
+    const upd = () => {
+      const p = (OLW.Assets && OLW.Assets.progress) ? OLW.Assets.progress() : { loaded: 1, total: 1 };
+      const pct = Math.round(100 * p.loaded / Math.max(1, p.total));
+      const f = document.getElementById('lo-fill'), t = document.getElementById('lo-pct');
+      if (f) f.style.width = pct + '%';
+      if (t) t.textContent = 'Loading ' + pct + '%';
+    };
+    upd(); loadTimer = setInterval(upd, 120);
+  }
+  function hideLoadingOverlay() {
+    if (loadTimer) { clearInterval(loadTimer); loadTimer = null; }
+    if (loadEl) loadEl.style.display = 'none';
+  }
+  function startGameWithLoader() {
+    const prog = (OLW.Assets && OLW.Assets.progress) ? OLW.Assets.progress() : { loaded: 1, total: 1 };
+    if (!OLW.Assets || prog.loaded >= prog.total) { enterGameUI(); game.start(); return; }
+    showLoadingOverlay();
+    let started = false;
+    const go = () => { if (started) return; started = true; hideLoadingOverlay(); enterGameUI(); game.start(); };
+    OLW.Assets.whenLoaded(go);
+    setTimeout(go, 6000);   // safety: never hard-block the kiosk
+  }
+
   /* ---------- game ---------- */
   const game = new OLW.Game(canvas, {
     onStats: updateHud,
@@ -61,33 +102,53 @@ let selectedRoomMode = 'coop';
     'Connected and ready';
 
   $('room-message').classList.remove('error');
+
+  // Solo-phone: the phone IS the only player — start automatically on connect.
+  if (OLW.Multiplayer.mode === 'solophone') {
+    $('room-message').textContent = 'Phone connected — starting the watch…';
+    if (!soloPhoneStarted) {
+      soloPhoneStarted = true;
+      OLW.Multiplayer.startRoom();
+    }
+    return;
+  }
+
   $('room-message').textContent =
     'Both guards are ready. Begin the watch.';
 
   $('btn-start-room').disabled = false;
 });
 
-OLW.Multiplayer.on('matchStarted', () => {
+OLW.Multiplayer.on('matchStarted', (payload) => {
+  // versus: this kiosk is the DEFENDER; the phone attacker spawns raiders
+  const mode = (payload && payload.room && payload.room.mode) || OLW.Multiplayer.mode;
+  game._versusPending = (mode === 'versus');
   enterGameUI();
   game.start();
 });
 
+// versus: the attacker's phone requested a raider from a lane
+OLW.Multiplayer.on('player2Spawn', (payload) => {
+  if (game.versus) game.spawnAttackerRaider({ lane: payload.lane, type: payload.raiderType });
+});
+
+// In solo-phone the phone drives the MAIN warden (Player 1); in co-op/versus it
+// drives the second reticle (Player 2).
 OLW.Multiplayer.on('player2Aim', (payload) => {
-  game.setPlayer2Aim(
-    payload.x * C.WIDTH,
-    payload.y * C.HEIGHT
-  );
+  const x = payload.x * C.WIDTH, y = payload.y * C.HEIGHT;
+  if (OLW.Multiplayer.mode === 'solophone') game.setAim(x, y);
+  else game.setPlayer2Aim(x, y);
 });
 
 OLW.Multiplayer.on('player2Strike', (payload) => {
-  game.strikePlayer2(
-    payload.x * C.WIDTH,
-    payload.y * C.HEIGHT
-  );
+  const x = payload.x * C.WIDTH, y = payload.y * C.HEIGHT;
+  if (OLW.Multiplayer.mode === 'solophone') { game.setAim(x, y); game.strike(); }
+  else game.strikePlayer2(x, y);
 });
 
 OLW.Multiplayer.on('player2Volley', () => {
-  game.usePlayer2Volley();
+  if (OLW.Multiplayer.mode === 'solophone') game.useVolley();
+  else game.usePlayer2Volley();
 });
 
 OLW.Multiplayer.on('playerLeft', (payload) => {
@@ -122,10 +183,15 @@ OLW.Multiplayer.on('playerLeft', (payload) => {
 
     $('time-val').textContent = U.fmtTime(s.time);
     $('score-val').textContent = s.score;
-    $('wave-tag').textContent = s.wave > 0 ? ('Wave ' + s.wave) : 'Standing by';
-    $('wave-sub').textContent = s.breather > 0.05
-      ? ('Next wave in ' + Math.ceil(s.breather) + 's')
-      : '';
+    if (s.versus) {
+      $('wave-tag').textContent = 'DEFEND';
+      $('wave-sub').textContent = 'Hold ' + (s.versusTimeLeft != null ? s.versusTimeLeft : 0) + 's';
+    } else {
+      $('wave-tag').textContent = s.wave > 0 ? ('Wave ' + s.wave) : 'Standing by';
+      $('wave-sub').textContent = s.breather > 0.05
+        ? ('Next wave in ' + Math.ceil(s.breather) + 's')
+        : '';
+    }
     const combo = $('combo-pill');
     combo.classList.toggle('hidden', s.multiplier < 2);
     $('combo-val').textContent = 'x' + s.multiplier;
@@ -149,12 +215,14 @@ if (
     score: s.score,
     time: s.time,
     wave: s.wave,
+    versus: s.versus,
+    versusTimeLeft: s.versusTimeLeft,
     player2Charge: s.player2Charge
   });
 }
   }
 
-  async function onGameOver(res) {
+  function onGameOver(res) {
     lastResult = res;
     res._saved = false;
     res._skipped = false;
@@ -162,8 +230,35 @@ if (
     $('res-waves').textContent = res.waves;
     $('res-kills').textContent = res.kills;
     $('res-score').textContent = res.score;
-    const rank = await OLW.Leaderboard.rankOf(res.score);
-    $('res-rank').textContent = rank <= 10 ? `Provisional rank #${rank} — sign the roll to claim it.` : `You reached rank #${rank}. Another watch could break the top ten.`;
+
+    const overTitle = document.querySelector('#screen-over .panel-title');
+    if (res.versus) {
+      // Versus outcome (this kiosk is the defender): announce the winner up top.
+      const defenderWon = res.versusWinner === 'defender';
+      if (overTitle) overTitle.textContent = defenderWon ? 'Outpost held!' : 'The wall has fallen';
+      $('res-rank').textContent = defenderWon
+        ? `DEFENDER WINS — you survived all ${res.survived != null ? Math.round(res.survived) : ''}s.`
+        : `ATTACKER WINS — the wall fell in ${Math.round(res.time)}s.`;
+    } else {
+      if (overTitle) overTitle.textContent = 'The wall has fallen';
+      // Placeholder now; the rank is fetched in the background so the game-over
+      // screen appears INSTANTLY (previously it awaited a leaderboard fetch that
+      // could stall/hang, leaving the battlefield frozen with no modal).
+      $('res-rank').textContent = 'Tallying the Watch Roll…';
+      const scoreForRank = res.score;
+      OLW.Leaderboard.rankOf(scoreForRank)
+        .then((rank) => {
+          if (lastResult !== res) return;   // a new run started meanwhile
+          $('res-rank').textContent = rank <= 10
+            ? `Provisional rank #${rank} — sign the roll to claim it.`
+            : `You reached rank #${rank}. Another watch could break the top ten.`;
+        })
+        .catch(() => {
+          if (lastResult !== res) return;
+          $('res-rank').textContent = 'Sign the roll to record your score.';
+        });
+    }
+
     // Name entry + actions are shown together: the score is saved automatically on
     // any exit UNLESS the guard explicitly taps "Continue without saving".
     $('name-entry').classList.remove('hidden');
@@ -173,7 +268,7 @@ if (
     $('btn-save-score').disabled = false;
     $('company-input').value = OLW.Device?.profile?.company || '';
     $('name-input').value = '';
-    showScreen('over');
+    showScreen('over');            // shows immediately — no awaiting the network
     setTimeout(() => $('company-input').focus(), 100);
   }
 
@@ -321,13 +416,63 @@ document
  /* ---------- menu buttons ---------- */
 
 $('btn-play').addEventListener('click', () => {
-  enterGameUI();
-  game.start();
+  startGameWithLoader();
 });
 
 $('btn-how').addEventListener('click', () => {
+  briefGo(0);          // always open the manual on the first card
   showScreen('how');
 });
+
+/* ---------- briefing carousel (Field Manual) ---------- */
+let briefIdx = 0;
+function briefGo(i) {
+  const track = $('brief-track');
+  if (!track) return;
+  const slides = track.children;
+  briefIdx = Math.max(0, Math.min(slides.length - 1, i));
+  track.style.transform = `translateX(${-briefIdx * 100}%)`;
+  const dots = $('brief-dots');
+  if (dots) [...dots.children].forEach((d, j) => d.classList.toggle('active', j === briefIdx));
+  const prev = document.querySelector('.brief-prev');
+  const next = document.querySelector('.brief-next');
+  if (prev) prev.disabled = briefIdx === 0;
+  if (next) next.disabled = briefIdx === slides.length - 1;
+}
+(function initBrief() {
+  const track = $('brief-track');
+  const dots = $('brief-dots');
+  if (!track || !dots) return;
+  const slides = track.children;
+  for (let i = 0; i < slides.length; i++) {
+    const d = document.createElement('button');
+    d.type = 'button';
+    d.className = 'brief-dot' + (i === 0 ? ' active' : '');
+    d.setAttribute('aria-label', 'Card ' + (i + 1));
+    d.addEventListener('click', () => briefGo(i));
+    dots.appendChild(d);
+  }
+  document.querySelector('.brief-prev')?.addEventListener('click', () => briefGo(briefIdx - 1));
+  document.querySelector('.brief-next')?.addEventListener('click', () => briefGo(briefIdx + 1));
+  // arrow keys while the manual is open
+  window.addEventListener('keydown', (e) => {
+    const how = document.getElementById('screen-how');
+    if (!how || how.classList.contains('hidden')) return;
+    if (e.key === 'ArrowLeft') briefGo(briefIdx - 1);
+    else if (e.key === 'ArrowRight') briefGo(briefIdx + 1);
+  });
+  // swipe on touch
+  const vp = document.querySelector('.brief-viewport');
+  let sx = 0, sw = false;
+  vp?.addEventListener('pointerdown', (e) => { sx = e.clientX; sw = true; });
+  vp?.addEventListener('pointerup', (e) => {
+    if (!sw) return; sw = false;
+    const dx = e.clientX - sx;
+    if (dx > 40) briefGo(briefIdx - 1);
+    else if (dx < -40) briefGo(briefIdx + 1);
+  });
+  briefGo(0);
+})();
 
 $('btn-scores').addEventListener('click', async () => {
   showScreen('scores');
@@ -335,8 +480,28 @@ $('btn-scores').addEventListener('click', async () => {
 });
 
 $('btn-qr').addEventListener('click', () => {
+  // normal multiplayer modal: use whatever mode chip is selected (default coop)
+  const sel = document.querySelector('.mode-option.selected');
+  selectedRoomMode = (sel && sel.dataset.mode) || 'coop';
   resetRoomScreen();
   showScreen('qr');
+});
+
+// Quick access: one tap → creates a solo-phone room and shows the QR directly,
+// skipping the multiplayer setup form (no flash of the setup modal).
+$('btn-phone-solo')?.addEventListener('click', async () => {
+  selectedRoomMode = 'solophone';
+  resetRoomScreen();
+  // jump straight to the lobby/QR view BEFORE the network round-trip so the
+  // setup form (mode picker) never flashes on screen
+  $('room-setup').classList.add('hidden');
+  $('room-lobby').classList.remove('hidden');
+  $('room-screen-title').textContent = 'Solo · Phone';
+  $('room-code').textContent = '······';
+  $('game-qr').innerHTML = '<div class="qr-loading">Generating code…</div>';
+  $('room-message').textContent = 'Preparing your controller link…';
+  showScreen('qr');
+  await createSharedRoom();
 });
 
 document
@@ -402,8 +567,7 @@ $('btn-save-score').addEventListener(
 
 $('btn-retry').addEventListener('click', async () => {
   await commitScoreIfNeeded();
-  enterGameUI();
-  game.start();
+  startGameWithLoader();
 });
 
 $('btn-menu').addEventListener('click', async () => {
@@ -461,7 +625,9 @@ $('btn-skip-score')
         name: buildDisplayName(),
         company,
         playerName: player,
-        mode: OLW.Multiplayer?.mode || 'solo',
+        // leaderboard only recognises solo/coop/versus — solo-phone is a solo run
+        mode: (OLW.Multiplayer?.mode === 'coop' || OLW.Multiplayer?.mode === 'versus')
+          ? OLW.Multiplayer.mode : 'solo',
         mapId: OLW.Multiplayer?.mapId || 'frontier',
         score: lastResult.score,
         time: lastResult.time,
@@ -531,6 +697,7 @@ async function updateTitleBest() {
   }
 
   function resetRoomScreen() {
+  soloPhoneStarted = false;
   $('room-setup').classList.remove('hidden');
   $('room-lobby').classList.add('hidden');
 
@@ -538,15 +705,19 @@ async function updateTitleBest() {
 $('room-message').textContent =
   selectedRoomMode === 'versus'
     ? 'Waiting for your rival...'
-    : 'Waiting for Player 2...';
+    : selectedRoomMode === 'solophone'
+      ? 'Scan the QR with your phone to play.'
+      : 'Waiting for Player 2...';
 
   $('btn-start-room').disabled = true;
+  // solo-phone starts automatically on connect, so hide the manual start button
+  $('btn-start-room').style.display = selectedRoomMode === 'solophone' ? 'none' : '';
 
   $('player-two-card').classList.add('waiting');
   $('player-two-card').classList.remove('connected');
 
   $('controller-player-name').textContent =
-    'Waiting for another guard';
+    selectedRoomMode === 'solophone' ? 'Waiting for your phone' : 'Waiting for another guard';
 
   $('controller-player-status').textContent =
     'Scan the QR code to join';
@@ -600,7 +771,9 @@ async function createSharedRoom() {
     $('room-screen-title').textContent =
   selectedRoomMode === 'versus'
     ? 'Rival Watch'
-    : 'Shared Watch';
+    : selectedRoomMode === 'solophone'
+      ? 'Solo · Phone'
+      : 'Shared Watch';
 
     $('room-setup').classList.add('hidden');
     $('room-lobby').classList.remove('hidden');
@@ -616,7 +789,9 @@ async function createSharedRoom() {
 
     roomMessage.classList.remove('error');
     roomMessage.textContent =
-      'Waiting for Player 2...';
+      selectedRoomMode === 'solophone'
+        ? 'Scan the QR with your phone to play.'
+        : 'Waiting for Player 2...';
 
     renderRoomQr(response.joinUrl);
   } catch (error) {

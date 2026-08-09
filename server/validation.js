@@ -14,7 +14,8 @@ export const createRoomSchema =
     mode:
       z.enum([
         'coop',
-        'versus'
+        'versus',
+        'solophone'   // one player, phone is the controller (booth walk-up)
       ])
       .default('coop'),
 
@@ -70,6 +71,19 @@ export const controllerStrikeSchema = z.object({
     .string()
     .max(80)
     .optional()
+});
+
+// Versus: the phone attacker asks the host to spawn a raider from a lane.
+export const controllerSpawnSchema = z.object({
+  roomCode: z
+    .string()
+    .trim()
+    .length(6)
+    .transform((value) => value.toUpperCase()),
+
+  lane: z.number().min(0).max(1),
+
+  raiderType: z.enum(['basic', 'fast', 'tough']).default('basic')
 });
 
 export const leaderboardSubmissionSchema = z.object({

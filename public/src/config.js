@@ -39,6 +39,9 @@ OLW.CONFIG = {
   BREATHER: 2.6,
   RAID_EVERY: 5,
 
+  // Versus (attacker vs defender): seconds the defender must survive to win.
+  VERSUS_DURATION: 90,
+
   MANGO_FIRST_AT: 2,
   MANGO_CHANCE: 0.55,
 

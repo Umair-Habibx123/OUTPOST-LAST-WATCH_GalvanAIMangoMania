@@ -33,6 +33,9 @@ export async function applyMigrations() {
   await sql`ALTER TABLE leaderboard_entries ALTER COLUMN display_name TYPE VARCHAR(120)`;
   await sql`ALTER TABLE leaderboard_entries ADD COLUMN IF NOT EXISTS company VARCHAR(60)`;
   await sql`ALTER TABLE leaderboard_entries ADD COLUMN IF NOT EXISTS player_name VARCHAR(60)`;
+  // allow the 'solophone' room mode (booth solo play via phone controller)
+  await sql`ALTER TABLE game_rooms DROP CONSTRAINT IF EXISTS game_rooms_mode_check`;
+  await sql`ALTER TABLE game_rooms ADD CONSTRAINT game_rooms_mode_check CHECK (mode IN ('coop','versus','solophone'))`;
 }
 
 /**

@@ -22,6 +22,7 @@ const graceTimers = new Map();
 import {
   controllerAimSchema,
   controllerStrikeSchema,
+  controllerSpawnSchema,
   createRoomSchema,
   joinRoomSchema,
   parsePayload
@@ -309,6 +310,22 @@ export function configureSockets(io) {
       });
     });
 
+    // Versus: attacker (controller) requests a raider spawn; host is authoritative.
+    socket.on('controller:spawn', (payload) => {
+      const parsed = parsePayload(controllerSpawnSchema, payload);
+      if (!parsed.ok) return;
+
+      const room = getInternalRoom(parsed.data.roomCode);
+      if (!room || room.controllerSocketId !== socket.id) return;
+      if (room.status !== 'active' || room.mode !== 'versus') return;
+
+      socket.to(parsed.data.roomCode).emit('player2:spawn', {
+        lane: parsed.data.lane,
+        raiderType: parsed.data.raiderType,
+        sentAt: Date.now()
+      });
+    });
+
     socket.on('controller:volley', ({ roomCode }) => {
       const normalized = String(roomCode || '')
         .trim()
@@ -346,6 +363,8 @@ export function configureSockets(io) {
         score: stats?.score,
         time: stats?.time,
         wave: stats?.wave,
+        versus: stats?.versus,
+        versusTimeLeft: stats?.versusTimeLeft,
         player2Charge: stats?.player2Charge
       });
     });

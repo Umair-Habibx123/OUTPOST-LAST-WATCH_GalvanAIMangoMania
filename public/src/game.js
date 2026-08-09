@@ -71,8 +71,21 @@ window.OLW = window.OLW || {};
       this.player2Aim = {
   x: CX,
   y: CY + 120,
+  tx: CX,          // latest networked target (reticle glides toward this)
+  ty: CY + 120,
   active: false
 };
+
+      // ---- Versus (Attacker vs Defender) ----
+      // In versus the auto wave-director is suppressed: the phone ATTACKER spawns
+      // raiders, the kiosk DEFENDER survives a countdown. Defender lives to 0 →
+      // defender wins; wall hits 0 → attacker wins.
+      this.versus = !!this._versusPending;
+      this._versusPending = false;
+      this.versusDuration = C.VERSUS_DURATION || 90;
+      this.versusTimeLeft = this.versusDuration;
+      this.attackerCooldown = 0;
+      this.attackerSpawns = 0;
 
 this.player2Kills = 0;
 this.player2Shots = 0;
@@ -132,13 +145,21 @@ this.player2VolleyCharge = 0;
 }
 
 setPlayer2Aim(x, y) {
-  this.player2Aim.x = U.clamp(x, 0, C.WIDTH);
-  this.player2Aim.y = U.clamp(y, 0, C.HEIGHT);
+  // store the networked TARGET; update() glides the rendered reticle toward it
+  this.player2Aim.tx = U.clamp(x, 0, C.WIDTH);
+  this.player2Aim.ty = U.clamp(y, 0, C.HEIGHT);
+  if (!this.player2Aim.active) {          // snap on first packet, no glide-in
+    this.player2Aim.x = this.player2Aim.tx;
+    this.player2Aim.y = this.player2Aim.ty;
+  }
   this.player2Aim.active = true;
 }
 
 strikePlayer2(x, y) {
   this.setPlayer2Aim(x, y);
+  // fire exactly where the phone aimed — bypass the smoothing lag for the shot
+  this.player2Aim.x = this.player2Aim.tx;
+  this.player2Aim.y = this.player2Aim.ty;
 
   return this.strikeAt(
     this.player2Aim.x,
@@ -503,6 +524,26 @@ strikeAt(ax, ay, playerSlot) {
       this.raiders.push(new OLW.Raider(spec.angle, spec.type, spec.speedMul));
     }
 
+    // Versus: the phone ATTACKER requests a raider from a lane. Host-authoritative
+    // — a per-type cooldown caps the spawn rate so the phone can't flood the wall.
+    // spec: { lane: 0..1 around the wall, type: 'basic'|'fast'|'tough' }
+    spawnAttackerRaider(spec) {
+      if (this.state !== 'playing' || !this.versus) return false;
+      if (this.attackerCooldown > 0) return false;
+      spec = spec || {};
+      const type = (spec.type === 'fast' || spec.type === 'tough') ? spec.type : 'basic';
+      let angle;
+      if (typeof spec.angle === 'number') angle = spec.angle;
+      else if (typeof spec.lane === 'number') angle = U.clamp(spec.lane, 0, 1) * U.TAU;
+      else angle = U.rand(0, U.TAU);
+      // difficulty drifts up a little as the round goes on
+      const ramp = 1 + Math.min(this.time / 120, 0.5);
+      this.raiders.push(new OLW.Raider(angle, type, ramp));
+      this.attackerSpawns++;
+      this.attackerCooldown = type === 'tough' ? 1.5 : type === 'fast' ? 0.7 : 0.95;
+      return true;
+    }
+
     onWaveStart(wave, raid, plan) {
       this.damageThisWave = 0;
       this.mangoDroppedThisWave = false;
@@ -614,6 +655,14 @@ strikeAt(ax, ay, playerSlot) {
     update(dt) {
       if (this.state !== "playing") return;
       this.time += dt;
+      // Glide the networked P2 reticle toward its latest target. This hides
+      // network jitter + the ~30Hz packet rate so co-op aiming looks smooth
+      // instead of stepping/laggy. Frame-rate independent easing.
+      if (this.player2Aim.active) {
+        const k = 1 - Math.exp(-dt * 22);
+        this.player2Aim.x += (this.player2Aim.tx - this.player2Aim.x) * k;
+        this.player2Aim.y += (this.player2Aim.ty - this.player2Aim.y) * k;
+      }
       if (this.strikeCd > 0) {
   this.strikeCd -= dt;
 }
@@ -634,10 +683,17 @@ if (this.wardenShotAnim > 0) {
         this.damageFlash = Math.max(0, this.damageFlash - dt * 1.6);
       if (this.bannerTimer > 0) this.bannerTimer -= dt;
 
-      this.director.update(dt);
+      if (this.versus) {
+        // Attacker-driven mode: no auto director. Tick the survival countdown and
+        // the attacker's spawn cooldown. Defender wins if the clock runs out.
+        if (this.attackerCooldown > 0) this.attackerCooldown -= dt;
+        this.versusTimeLeft = Math.max(0, this.versusTimeLeft - dt);
+      } else {
+        this.director.update(dt);
+      }
 
-      // scheduled mango cart
-      if (this.mangoScheduled >= 0) {
+      // scheduled mango cart (waves only — not in versus)
+      if (!this.versus && this.mangoScheduled >= 0) {
         this.waveElapsed += dt;
         if (
           !this.mangoDroppedThisWave &&
@@ -667,16 +723,18 @@ if (this.wardenShotAnim > 0) {
       for (const e of this.effects) e.update(dt);
       this.effects = this.effects.filter((e) => !e.gone);
 
-      // wave clear: director done spawning and no live raiders remain
+      // wave clear: director done spawning and no live raiders remain (waves only)
       if (
+        !this.versus &&
         this.director.finishedSpawning &&
         !this.raiders.some((r) => r.alive)
       ) {
         this.waveCleared(this.director.wave);
       }
 
-      // defeat
-      if (this.integrity <= 0) this.gameOver();
+      // end conditions
+      if (this.integrity <= 0) this.gameOver();               // wall fell (attacker wins in versus)
+      else if (this.versus && this.versusTimeLeft <= 0) this.gameOver(); // defender survived
 
    this.statsTick += dt;
 
@@ -723,7 +781,13 @@ if (this.statsTick >= 0.05) {
     kills: this.player2Kills,
     shots: this.player2Shots,
     hits: this.player2Hits
-  }
+  },
+
+  // versus outcome: wall fell → attacker won; timer expired → defender survived
+  versus: this.versus,
+  versusWinner: this.versus ? (this.integrity <= 0 ? 'attacker' : 'defender') : null,
+  attackerSpawns: this.attackerSpawns,
+  survived: this.versus ? +(this.versusDuration - this.versusTimeLeft).toFixed(1) : null
 };
 if (
   OLW.Multiplayer &&
@@ -754,6 +818,9 @@ this.stop();
     score: this.score,
     wave: this.director.wave,
     breather: this.director.breatherLeft,
+
+    versus: this.versus,
+    versusTimeLeft: this.versus ? Math.ceil(this.versusTimeLeft) : null,
 
     combo: this.combo,
     multiplier: this.comboMultiplier,

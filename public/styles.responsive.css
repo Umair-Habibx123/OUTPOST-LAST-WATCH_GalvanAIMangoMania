@@ -359,7 +359,8 @@ body {
   }
 
   .ars-quit {
-    left: 9px !important;
+    right: 84px !important;
+    left: auto !important;
     bottom: 8px !important;
   }
 }
@@ -431,15 +432,29 @@ body {
     letter-spacing: 1.4px;
   }
 
+  /* centre the title column and use the full width — the desktop left-column +
+     portrait layout wasted the right half and clipped the left edge on phones */
+  /* full-width column (was 72vw left-clipped) + drop the decorative portrait */
   .modern-title-layout {
-    width: 72vw;
-    padding-left: 16px;
+    width: 92vw;
+    max-width: 460px;
+    margin: 0 auto;
+    justify-self: center;
+    padding-left: 0;
+  }
+
+  /* the primary "Take the Watch" + "Shared Watch" pair is a 2-column grid on
+     desktop; make it a single column on phones so the card can't run off-screen */
+  .modern-title-layout .modern-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .modern-title-layout .multiplayer-card,
+  .modern-title-layout .hero-play {
+    width: 100%;
   }
 
   .warden-portrait {
-    right: -10%;
-    width: 55vw;
-    height: 65%;
-    opacity: .30;
+    display: none;
   }
 }

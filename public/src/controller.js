@@ -44,9 +44,20 @@
 
   const connectionPill = $('connection-pill');
 
+  // versus attacker UI
+  const attackerPanel = $('attacker-panel');
+  const spawnPad = $('spawn-pad');
+  const spawnArrow = $('spawn-arrow');
+  const atkTimer = $('atk-timer');
+  const aimControls = $('aim-pad');
+  const defenderActions = document.querySelector('.controller-actions');
+
   let roomCode = '';
   let joined = false;
   let matchActive = false;
+  let attackerMode = false;     // true when this room is versus (phone = attacker)
+  let raiderType = 'basic';
+  let lastSpawnAt = 0;
 
   let aim = {
     x: 0.5,
@@ -81,9 +92,10 @@
           joinScreen.classList.add('hidden');
           if (res.room.status === 'active') {
             matchActive = true;
+            applyControllerMode(res.room);
             waitingScreen.classList.add('hidden');
             gameScreen.classList.remove('hidden');
-            sendAim(true);
+            if (!attackerMode) sendAim(true);
           } else {
             waitingScreen.classList.remove('hidden');
             gameScreen.classList.add('hidden');
@@ -108,6 +120,17 @@
     $('joined-room-code').textContent = room.code;
   });
 
+  // versus → this phone is the ATTACKER: swap the aim/fire controls for the
+  // spawn ring. Any other mode keeps the defender/co-op aim controls.
+  function applyControllerMode(room) {
+    attackerMode = (room && room.mode === 'versus');
+    if (attackerPanel) attackerPanel.classList.toggle('hidden', !attackerMode);
+    if (aimControls) aimControls.classList.toggle('hidden', attackerMode);
+    if (defenderActions) defenderActions.classList.toggle('hidden', attackerMode);
+    const wl = document.querySelector('.controller-stat:nth-child(2) span');
+    if (wl && attackerMode) wl.textContent = 'Hold';
+  }
+
   socket.on('match:started', (payload) => {
     if (
       !joined ||
@@ -117,11 +140,12 @@
     }
 
     matchActive = true;
+    applyControllerMode(payload.room);
 
     waitingScreen.classList.add('hidden');
     gameScreen.classList.remove('hidden');
 
-    sendAim(true);
+    if (!attackerMode) sendAim(true);
   });
 
   socket.on('match:stats', (stats) => {
@@ -142,8 +166,13 @@
     $('mobile-integrity').textContent =
       Math.ceil(integrity) + '%';
 
-    $('mobile-wave').textContent =
-      String(stats.wave || 0);
+    if (stats.versus) {
+      const left = stats.versusTimeLeft != null ? stats.versusTimeLeft : 0;
+      $('mobile-wave').textContent = left + 's';
+      if (atkTimer) atkTimer.textContent = 'Wall holds ' + left + 's';
+    } else {
+      $('mobile-wave').textContent = String(stats.wave || 0);
+    }
 
     $('mobile-time').textContent =
       Number(stats.time || 0).toFixed(1);
@@ -288,10 +317,11 @@
     const now = performance.now();
 
     /*
-     * Approximately 30 aim messages per second.
-     * volatile means old aim packets may be dropped rather than queued.
+     * ~50 aim messages per second (tiny payloads). volatile means stale aim
+     * packets are dropped rather than queued, and the host smooths between them,
+     * so this stays responsive without flooding a laggy connection.
      */
-    if (!force && now - lastAimSentAt < 33) {
+    if (!force && now - lastAimSentAt < 20) {
       return;
     }
 
@@ -366,5 +396,47 @@
     if (navigator.vibrate) {
       navigator.vibrate([25, 25, 45]);
     }
+  });
+
+  /* ---------- versus attacker: tap the ring to send raiders ---------- */
+  const TAU = Math.PI * 2;
+
+  function sendSpawn(clientX, clientY) {
+    if (!attackerMode || !matchActive || !roomCode) return;
+    const now = performance.now();
+    if (now - lastSpawnAt < 160) return;   // light client throttle; host cooldown is authoritative
+    lastSpawnAt = now;
+
+    const b = spawnPad.getBoundingClientRect();
+    const dx = clientX - (b.left + b.width / 2);
+    const dy = clientY - (b.top + b.height / 2);
+    let lane = (Math.atan2(dy, dx) / TAU) + 1;
+    lane -= Math.floor(lane);              // normalise to 0..1
+
+    socket.emit('controller:spawn', { roomCode, lane, raiderType });
+
+    if (spawnArrow) {
+      spawnArrow.style.opacity = '1';
+      spawnArrow.style.transform =
+        `translate(-50%,-100%) rotate(${Math.atan2(dy, dx) + Math.PI / 2}rad)`;
+      clearTimeout(spawnArrow._t);
+      spawnArrow._t = setTimeout(() => { spawnArrow.style.opacity = '0'; }, 260);
+    }
+    if (navigator.vibrate) navigator.vibrate(14);
+  }
+
+  if (spawnPad) {
+    spawnPad.addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      sendSpawn(event.clientX, event.clientY);
+    });
+  }
+
+  document.querySelectorAll('.atk-type').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.atk-type').forEach((b) => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      raiderType = btn.dataset.type || 'basic';
+    });
   });
 })();

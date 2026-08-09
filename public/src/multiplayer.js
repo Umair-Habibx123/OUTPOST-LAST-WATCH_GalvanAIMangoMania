@@ -187,6 +187,11 @@ OLW.Multiplayer = (function () {
     socket.on('player2:volley', (payload) => {
       emitLocal('player2Volley', payload);
     });
+
+    // versus: attacker asked the host to spawn a raider
+    socket.on('player2:spawn', (payload) => {
+      emitLocal('player2Spawn', payload);
+    });
   }
 
   return {

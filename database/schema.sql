@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS game_rooms (
     room_code VARCHAR(6) NOT NULL UNIQUE,
 
     mode VARCHAR(20) NOT NULL
-        CHECK (mode IN ('coop', 'versus')),
+        CHECK (mode IN ('coop', 'versus', 'solophone')),
 
     status VARCHAR(20) NOT NULL DEFAULT 'waiting'
         CHECK (

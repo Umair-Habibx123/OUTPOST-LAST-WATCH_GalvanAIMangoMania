@@ -8,6 +8,7 @@ OLW.Assets = (function () {
    */
   const files = {
     raiders: [
+      'assets/art/characters/raider_atlas.webp',
       'assets/art/characters/raider_atlas.png'
     ],
 
@@ -21,6 +22,7 @@ OLW.Assets = (function () {
     // Current redesigned warden sheet.
     // The renderer treats it as a horizontal action sheet when possible.
     warden: [
+      'assets/art/characters/warden.webp',
       'assets/art/characters/warden.png'
     ],
 
@@ -33,14 +35,17 @@ OLW.Assets = (function () {
     ],
 
     dragon: [
+      'assets/art/characters/dragon.webp',
       'assets/art/characters/dragon.png'
     ],
 
     warBeast: [
+      'assets/art/characters/war-beast.webp',
       'assets/art/characters/war-beast.png'
     ],
 
     backupGuard: [
+      'assets/art/characters/backup-guard.webp',
       'assets/art/characters/backup-guard.png'
     ],
 
@@ -64,6 +69,18 @@ OLW.Assets = (function () {
   const images = {};
   const loadedUrl = {};
 
+  // ---- progress tracking so a loading screen can gate game start ----
+  const total = Object.keys(files).length;
+  let settled = 0;                 // keys that have loaded OR exhausted all candidates
+  const waiters = [];
+  function markSettled() {
+    settled++;
+    if (settled >= total) {
+      const pending = waiters.splice(0);
+      pending.forEach((fn) => { try { fn(); } catch (e) {} });
+    }
+  }
+
   function loadCandidates(key, candidates) {
     const list = Array.isArray(candidates) ? candidates.slice() : [candidates];
     const image = new Image();
@@ -71,10 +88,13 @@ OLW.Assets = (function () {
     images[key] = image;
 
     let index = 0;
+    let done = false;
+    const settleOnce = () => { if (!done) { done = true; markSettled(); } };
 
     const tryNext = () => {
       if (index >= list.length) {
         console.warn(`[Outpost Assets] Unable to load ${key}`, list);
+        settleOnce();
         return;
       }
 
@@ -82,6 +102,7 @@ OLW.Assets = (function () {
       image.onload = () => {
         loadedUrl[key] = url;
         image.decode?.().catch(() => {});
+        settleOnce();
       };
       image.onerror = tryNext;
       image.src = url;
@@ -92,6 +113,14 @@ OLW.Assets = (function () {
   }
 
   Object.entries(files).forEach(([key, value]) => loadCandidates(key, value));
+
+  // Resolve when every asset has settled (loaded or failed-over). Fires
+  // immediately if already done. A loading screen uses this to gate game start.
+  function whenLoaded(cb) {
+    if (settled >= total) { try { cb(); } catch (e) {} return; }
+    waiters.push(cb);
+  }
+  function progress() { return { loaded: settled, total }; }
 
   function ready(key) {
     const image = images[key];
@@ -114,6 +143,8 @@ OLW.Assets = (function () {
     images,
     loadedUrl,
     ready,
+    whenLoaded,
+    progress,
     map
   };
 })();

@@ -153,7 +153,9 @@ OLW.Arsenal = (function () {
     runCoins: 0,
     _run: {},
     _items: {},
-    _active: {},
+    // each is an ARRAY so several allies of any type can coexist, each with its
+    // own health, covering a different direction (deploys stack, never override)
+    _active: { rally: [], warhound: [], dragon: [] },
     _blasts: [],
     _flash: 0,
     _game: null
@@ -377,31 +379,38 @@ OLW.Arsenal = (function () {
 
     } else if (id === 'rally') {
       const spec = FIELD_LIFE.rally;
-      A._active.rally = {
-        hp: Math.round(spec.max * fieldKitMult()), maxHp: Math.round(spec.max * fieldKitMult()),
-        acc: 0, phase: 0, muzzle: -1, muzzleLife: 0,
+      const hp = Math.round(spec.max * fieldKitMult());
+      const homeAngle = nextHomeAngle(A._active.rally);
+      A._active.rally.push({
+        hp, maxHp: hp, acc: 0, phase: 0, muzzle: -1, muzzleLife: 0,
+        homeAngle, guards: rallyGuards(homeAngle),
         targets: [{ x: CX, y: CY - 100 }, { x: CX, y: CY - 100 }]
-      };
-      g.addFloater(CX, CY - 110, 'BACKUP TEAM DEPLOYED · 100 LIFE', '#8ed4f0', 18);
+      });
+      g.addFloater(CX, CY - 110, 'BACKUP TEAM DEPLOYED', '#8ed4f0', 18);
       OLW.Audio?.waveStart?.();
 
     } else if (id === 'warhound') {
       const spec = FIELD_LIFE.warhound;
-      A._active.warhound = {
-        hp: Math.round(spec.max * fieldKitMult()), maxHp: Math.round(spec.max * fieldKitMult()),
-        acc: 0, x: CX, y: CY + 34, phase: 0, pounce: 0, angle: 0
-      };
-      g.addFloater(CX, CY - 110, 'WAR BEAST UNLEASHED · 100 LIFE', '#c98a4a', 18);
+      const hp = Math.round(spec.max * fieldKitMult());
+      const homeAngle = nextHomeAngle(A._active.warhound);
+      const gr = 42;
+      A._active.warhound.push({
+        hp, maxHp: hp, acc: 0,
+        x: CX + Math.cos(homeAngle) * gr, y: CY + Math.sin(homeAngle) * gr,
+        phase: Math.random() * 10, pounce: 0, angle: homeAngle
+      });
+      g.addFloater(CX, CY - 110, 'WAR BEAST UNLEASHED', '#c98a4a', 18);
       OLW.Audio?.waveStart?.();
 
     } else if (id === 'dragon') {
       const spec = FIELD_LIFE.dragon;
-      A._active.dragon = {
-        hp: Math.round(spec.max * fieldKitMult()), maxHp: Math.round(spec.max * fieldKitMult()),
-        phase: 0, attackAcc: .65,
-        breathFlash: 0
-      };
-      g.addFloater(CX, CY - 120, 'EMBER DRAGON CALLED · 100 LIFE', '#ff7412', 20);
+      const hp = Math.round(spec.max * fieldKitMult());
+      A._active.dragon.push({
+        hp, maxHp: hp,
+        phase: (A._active.dragon.length * 0.37) % 1,   // spread around the orbit
+        attackAcc: .65, breathFlash: 0
+      });
+      g.addFloater(CX, CY - 120, 'EMBER DRAGON CALLED', '#ff7412', 20);
       g.shake = Math.min(12, g.shake + 5);
       OLW.Audio?.volley?.();
     }
@@ -410,6 +419,22 @@ OLW.Arsenal = (function () {
     renderItemBar();
     return true;
   };
+
+  // Successive deploys of the same ally type spread around the wall so each new
+  // one guards a fresh direction (top → right → bottom → left → …).
+  function nextHomeAngle(list) {
+    return -Math.PI / 2 + (list.length) * (Math.PI / 2) + OLW.U.rand(-0.22, 0.22);
+  }
+  // The two guards of one backup team, placed around a home direction.
+  function rallyGuards(homeAngle) {
+    const C = OLW.CONFIG, CX = C.WIDTH / 2, CY = C.HEIGHT / 2;
+    const gr = 66, perp = homeAngle + Math.PI / 2, off = 22;
+    const bx = CX + Math.cos(homeAngle) * gr, by = CY + Math.sin(homeAngle) * gr;
+    return [
+      { gx: bx + Math.cos(perp) * off, gy: by + Math.sin(perp) * off },
+      { gx: bx - Math.cos(perp) * off, gy: by - Math.sin(perp) * off },
+    ];
+  }
 
   A.tickAllies = function (game, dt) {
     const U = OLW.U;
@@ -421,9 +446,9 @@ OLW.Arsenal = (function () {
     const wallLoss = Math.max(0, previousIntegrity - game.integrity);
     A._lastIntegrity = game.integrity;
 
-    const nearest = (x, y) => {
+    const nearest = (x, y, range) => {
       let best = null;
-      let bestDistance = Infinity;
+      let bestDistance = range == null ? Infinity : range;
       for (const r of game.raiders) {
         if (!r.alive) continue;
         const d = U.dist(x, y, r.x, r.y);
@@ -443,58 +468,43 @@ OLW.Arsenal = (function () {
       return false;
     };
 
-    const destroyAlly = (key, label, color) => {
-      if (!A._active[key]) return;
-      A._active[key] = null;
-      game.addFloater(CX, CY - 105, label, color, 15);
-      game.spawnSparks(CX, CY, color, 10, 150);
+    // remove dead instances of a type and announce the loss (once per frame)
+    const cull = (key, label, color) => {
+      const list = A._active[key];
+      if (list.some((o) => o.hp <= 0)) {
+        A._active[key] = list.filter((o) => o.hp > 0);
+        game.addFloater(CX, CY - 105, label, color, 15);
+        game.spawnSparks(CX, CY, color, 10, 150);
+      }
     };
 
-    const active = A._active;
-
-    if (active.rally) {
-      const a = active.rally;
+    // ---- backup teams (each covers its own direction, own health) ----
+    for (const a of A._active.rally) {
       const spec = FIELD_LIFE.rally;
       a.hp -= spec.passive * dt + wallLoss * spec.wall;
       a.acc += dt;
       a.phase += dt * 5.5;
-
-      // Two guards with LOW-LEVEL guns: each covers one side (west / east) and
-      // can only hit raiders within its short range — not infinite, not all four
-      // directions. (a.range can be raised later by a team-weapon upgrade.)
       const RANGE = a.range || 205;
-      const guards = [
-        { gx: CX - 62, gy: CY + 34, west: true, idx: 0 },
-        { gx: CX + 62, gy: CY + 34, west: false, idx: 1 },
-      ];
       while (a.acc >= .42 && a.hp > 0) {
         a.acc -= .42;
-        for (const g of guards) {
-          let best = null, bd = RANGE;
-          for (const r of game.raiders) {
-            if (!r.alive) continue;
-            const onSide = g.west ? (r.x <= CX) : (r.x > CX);   // side coverage
-            if (!onSide) continue;
-            const d = U.dist(g.gx, g.gy, r.x, r.y);             // range limit
-            if (d < bd) { bd = d; best = r; }
-          }
+        a.guards.forEach((g, idx) => {
+          const best = nearest(g.gx, g.gy, RANGE);
           if (best) {
-            a.targets[g.idx] = { x: best.x, y: best.y };
+            a.targets[idx] = { x: best.x, y: best.y };
             game.bolts.push({ x1: g.gx, y1: g.gy, x2: best.x, y2: best.y, life: .12, max: .12, playerSlot: 2, ally: true });
             killRaider(best, '#8ed4f0', 5);
             a.hp -= spec.attack;
-            a.muzzle = g.idx;
+            a.muzzle = idx;
             a.muzzleLife = .10;
           }
-        }
+        });
       }
-
       if (a.muzzleLife > 0) a.muzzleLife -= dt;
-      if (a.hp <= 0) destroyAlly('rally', 'BACKUP TEAM LOST', '#8ed4f0');
     }
+    cull('rally', 'BACKUP TEAM LOST', '#8ed4f0');
 
-    if (active.warhound) {
-      const h = active.warhound;
+    // ---- war beasts (each chases the nearest raider independently) ----
+    for (const h of A._active.warhound) {
       const spec = FIELD_LIFE.warhound;
       h.hp -= spec.passive * dt + wallLoss * spec.wall;
       h.phase += dt * 11;
@@ -505,40 +515,29 @@ OLW.Arsenal = (function () {
         h.angle = angle;
         h.x += Math.cos(angle) * 155 * dt;
         h.y += Math.sin(angle) * 155 * dt;
-
         if (U.dist(h.x, h.y, target.x, target.y) < target.r + 22) {
           h.acc += dt;
-          if (h.acc >= .30) {
-            h.acc = 0;
-            h.pounce = .18;
-            killRaider(target, '#c98a4a', 8);
-            h.hp -= spec.attack;
-          }
+          if (h.acc >= .30) { h.acc = 0; h.pounce = .18; killRaider(target, '#c98a4a', 8); h.hp -= spec.attack; }
         } else h.acc = 0;
       }
 
-      // keep the beast inside the visible field — it patrols and intercepts
-      // raiders as they close on the centre, never wandering off-screen
       const FR = Math.min(CX, CY) - 16;
       const dc = U.dist(h.x, h.y, CX, CY);
       if (dc > FR) { h.x = CX + (h.x - CX) / dc * FR; h.y = CY + (h.y - CY) / dc * FR; }
       h.x = U.clamp(h.x, 26, C.WIDTH - 26);
       h.y = U.clamp(h.y, 26, C.HEIGHT - 26);
-
       if (h.pounce > 0) h.pounce -= dt;
-      if (h.hp <= 0) destroyAlly('warhound', 'WAR BEAST FALLEN', '#c98a4a');
     }
+    cull('warhound', 'WAR BEAST FALLEN', '#c98a4a');
 
-    if (active.dragon) {
-      const d = active.dragon;
+    // ---- dragons (each orbits at its own phase, breathes near the wall) ----
+    for (const d of A._active.dragon) {
       const spec = FIELD_LIFE.dragon;
       d.hp -= spec.passive * dt + wallLoss * spec.wall;
       d.phase = (d.phase + dt * .16) % 1;
       d.attackAcc += dt;
       if (d.breathFlash > 0) d.breathFlash -= dt;
 
-      // Like the beast: only breathe when raiders are actually closing on the
-      // wall — no more blind timed attacks. Targets the nearest few to centre.
       const guardBand = C.WALL_RADIUS + 150;
       const targets = game.raiders
         .filter((r) => r.alive && U.dist(r.x, r.y, CX, CY) < guardBand)
@@ -549,25 +548,19 @@ OLW.Arsenal = (function () {
         d.attackAcc = 0;
         d.hp -= spec.attack;
         d.breathFlash = .35;
-
         let hits = 0;
         for (const r of targets) {
-          // Dragon fire is heavy but not an unlimited full-screen wipe.
           let strikes = r.type === 'tough' ? 2 : 1;
-          while (strikes-- > 0 && r.alive) {
-            if (killRaider(r, '#ff7412', 10)) hits += 1;
-          }
+          while (strikes-- > 0 && r.alive) { if (killRaider(r, '#ff7412', 10)) hits += 1; }
         }
-
         if (hits) {
           game.addFloater(CX, CY - 126, `DRAGON BREATH +${hits * C.SCORE_PER_KILL}`, '#ff7412', 17);
           game.shake = Math.min(13, game.shake + 4);
           OLW.Audio?.volley?.();
         }
       }
-
-      if (d.hp <= 0) destroyAlly('dragon', 'DRAGON WITHDRAWS', '#ff7412');
     }
+    cull('dragon', 'DRAGON WITHDRAWS', '#ff7412');
   };
 
   function atlasDirectionRow(angle) {
@@ -595,91 +588,86 @@ OLW.Arsenal = (function () {
   }
 
   function drawBackupTeam(ctx) {
-    const a = A._active.rally; if (!a) return;
     const C = OLW.CONFIG, CX = C.WIDTH/2, CY = C.HEIGHT/2;
     const atlas = OLW.Assets?.ready?.('backupGuardAtlas') ? OLW.Assets.images.backupGuardAtlas : null;
-    const positions = [{x:CX-62,y:CY+34,index:0},{x:CX+62,y:CY+34,index:1}];
-    for (const p of positions) {
-      const target = a.targets?.[p.index] || {x:CX,y:CY-100};
-      const row = atlasDirectionRow(Math.atan2(target.y-p.y,target.x-p.x));
-      const firing = a.muzzle === p.index && a.muzzleLife > 0;
-      const frame = firing ? (a.muzzleLife>.065 ? 2 : (a.muzzleLife>.025 ? 3 : 4)) : 1;
-      if (atlas) drawAtlasFrame(ctx, atlas, 5, 8, frame, row, p.x, p.y, 59, .98);
-      else if (OLW.Assets?.ready?.('backupGuard')) { const im=OLW.Assets.images.backupGuard,w=57,h=w*im.naturalHeight/im.naturalWidth; ctx.drawImage(im,p.x-w/2,p.y-h*.78,w,h); }
+    for (const a of A._active.rally) {
+      a.guards.forEach((g, index) => {
+        const target = a.targets?.[index] || { x: CX, y: CY - 100 };
+        const row = atlasDirectionRow(Math.atan2(target.y - g.gy, target.x - g.gx));
+        const firing = a.muzzle === index && a.muzzleLife > 0;
+        const frame = firing ? (a.muzzleLife>.065 ? 2 : (a.muzzleLife>.025 ? 3 : 4)) : 1;
+        if (atlas) drawAtlasFrame(ctx, atlas, 5, 8, frame, row, g.gx, g.gy, 59, .98);
+        else if (OLW.Assets?.ready?.('backupGuard')) { const im=OLW.Assets.images.backupGuard,w=57,h=w*im.naturalHeight/im.naturalWidth; ctx.drawImage(im,g.gx-w/2,g.gy-h*.78,w,h); }
+      });
+      const bx = (a.guards[0].gx + a.guards[1].gx) / 2;
+      const by = Math.max(a.guards[0].gy, a.guards[1].gy) + 27;
+      drawFieldLifeBar(ctx, bx, by, 105, a.hp, a.maxHp, '#8ed4f0');
     }
-    drawFieldLifeBar(ctx, CX, CY + 61, 105, a.hp, a.maxHp, '#8ed4f0');
   }
 
   function drawWarhound(ctx) {
-    const h = A._active.warhound; if (!h) return;
-    if (OLW.Assets?.ready?.('warBeastAtlas')) {
-      const atlas = OLW.Assets.images.warBeastAtlas, row = atlasDirectionRow(h.angle || 0);
-      const frame = h.pounce > 0 ? (h.pounce > .075 ? 4 : 5) : Math.floor(h.phase * .72) % 4;
-      drawAtlasFrame(ctx, atlas, 6, 8, frame, row, h.x, h.y, h.pounce > 0 ? 84 : 75, .99);
-    } else if (OLW.Assets?.ready?.('warBeast')) {
-      const im = OLW.Assets.images.warBeast, w = 72, hh = w * im.naturalHeight / im.naturalWidth;
-      ctx.drawImage(im, h.x - w / 2, h.y - hh * .76, w, hh);
+    for (const h of A._active.warhound) {
+      if (OLW.Assets?.ready?.('warBeastAtlas')) {
+        const atlas = OLW.Assets.images.warBeastAtlas, row = atlasDirectionRow(h.angle || 0);
+        const frame = h.pounce > 0 ? (h.pounce > .075 ? 4 : 5) : Math.floor(h.phase * .72) % 4;
+        drawAtlasFrame(ctx, atlas, 6, 8, frame, row, h.x, h.y, h.pounce > 0 ? 84 : 75, .99);
+      } else if (OLW.Assets?.ready?.('warBeast')) {
+        const im = OLW.Assets.images.warBeast, w = 72, hh = w * im.naturalHeight / im.naturalWidth;
+        ctx.drawImage(im, h.x - w / 2, h.y - hh * .76, w, hh);
+      }
+      drawFieldLifeBar(ctx, h.x, h.y - 30, 58, h.hp, h.maxHp, '#c98a4a');
     }
-    // health meter always shown (was being skipped by the atlas branch's return)
-    drawFieldLifeBar(ctx, h.x, h.y - 30, 58, h.hp, h.maxHp, '#c98a4a');
   }
 
   function drawDragon(ctx) {
-    const d = A._active.dragon;
-    if (!d) return;
-
     const C = OLW.CONFIG;
-    // Orbit OVER the field (stays fully on-screen) rather than flying off the edge,
-    // so it reads as circling and torching the raiders closing on the centre.
-    const ang = (d.phase % 1) * Math.PI * 2;
-    const Rx = C.WIDTH * 0.30, Ry = C.HEIGHT * 0.22;
-    const x = C.WIDTH / 2 + Math.cos(ang) * Rx;
-    const y = C.HEIGHT * 0.40 + Math.sin(ang) * Ry;
-    const flip = (-Math.sin(ang)) < 0 ? -1 : 1;    // face along the orbit tangent
+    for (const d of A._active.dragon) {
+      // Orbit OVER the field (stays fully on-screen); each dragon has its own phase.
+      const ang = (d.phase % 1) * Math.PI * 2;
+      const Rx = C.WIDTH * 0.30, Ry = C.HEIGHT * 0.22;
+      const x = C.WIDTH / 2 + Math.cos(ang) * Rx;
+      const y = C.HEIGHT * 0.40 + Math.sin(ang) * Ry;
+      const flip = (-Math.sin(ang)) < 0 ? -1 : 1;
 
-    let frame;
-    if (d.breathFlash > 0) {
-      const breathProgress = 1 - d.breathFlash / .35;
-      frame = 5 + Math.min(2, Math.floor(breathProgress * 3));
-    } else if (d.attackAcc > 1.05) {
-      frame = 4;
-    } else {
-      frame = Math.floor((d.phase % 1) * 24) % 4;
+      let frame;
+      if (d.breathFlash > 0) {
+        const breathProgress = 1 - d.breathFlash / .35;
+        frame = 5 + Math.min(2, Math.floor(breathProgress * 3));
+      } else if (d.attackAcc > 1.05) {
+        frame = 4;
+      } else {
+        frame = Math.floor((d.phase % 1) * 24) % 4;
+      }
+
+      let drawn = false;
+      if (OLW.Assets?.ready?.('dragonAtlas')) {
+        const atlas = OLW.Assets.images.dragonAtlas;
+        ctx.save(); ctx.translate(x, y); ctx.scale(flip, 1);
+        drawAtlasFrame(ctx, atlas, 8, 1, frame, 0, 0, 0, 200, .98);
+        ctx.restore(); drawn = true;
+      } else if (OLW.Assets?.ready?.('dragon')) {
+        const im = OLW.Assets.images.dragon;
+        const w = 185, h = w * im.naturalHeight / im.naturalWidth;
+        ctx.save(); ctx.translate(x, y); ctx.scale(flip, 1);
+        ctx.drawImage(im, -w / 2, -h * .72, w, h);
+        ctx.restore(); drawn = true;
+      }
+      if (!drawn) continue;
+
+      if (frame >= 5) {
+        const hx = x + flip * 92, hy = y - 24;
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        const g = ctx.createRadialGradient(hx, hy, 0, hx, hy, 70);
+        g.addColorStop(0, 'rgba(255,189,78,.36)');
+        g.addColorStop(1, 'rgba(255,84,14,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(hx, hy, 70, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      }
+
+      drawFieldLifeBar(ctx, x, y + 40, 78, d.hp, d.maxHp, '#ff7412');
     }
-
-    if (OLW.Assets?.ready?.('dragonAtlas')) {
-      const atlas = OLW.Assets.images.dragonAtlas;
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.scale(flip, 1);
-      drawAtlasFrame(ctx, atlas, 8, 1, frame, 0, 0, 0, 200, .98);
-      ctx.restore();
-    } else if (OLW.Assets?.ready?.('dragon')) {
-      const im = OLW.Assets.images.dragon;
-      const w = 185, h = w * im.naturalHeight / im.naturalWidth;
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.scale(flip, 1);
-      ctx.drawImage(im, -w / 2, -h * .72, w, h);
-      ctx.restore();
-    } else {
-      return;
-    }
-
-    // fiery breath glow at the head (offset follows facing)
-    if (frame >= 5) {
-      const hx = x + flip * 92, hy = y - 24;
-      ctx.save();
-      ctx.globalCompositeOperation = 'screen';
-      const g = ctx.createRadialGradient(hx, hy, 0, hx, hy, 70);
-      g.addColorStop(0, 'rgba(255,189,78,.36)');
-      g.addColorStop(1, 'rgba(255,84,14,0)');
-      ctx.fillStyle = g;
-      ctx.beginPath(); ctx.arc(hx, hy, 70, 0, Math.PI * 2); ctx.fill();
-      ctx.restore();
-    }
-
-    drawFieldLifeBar(ctx, x, y + 40, 78, d.hp, d.maxHp, '#ff7412');
   }
 
   A.drawFieldKit = function (game) {
@@ -704,7 +692,7 @@ OLW.Arsenal = (function () {
       origReset.call(this);
       A._game = this;
       A.runCoins = startCoins();
-      A._active = {};
+      A._active = { rally: [], warhound: [], dragon: [] };
       A._lastIntegrity = this.integrity;
       A._runStarted = performance.now();
       if (!D.synced && D.load) D.load();   // ensure the profile is on its way
@@ -1265,7 +1253,6 @@ OLW.Arsenal = (function () {
       <div class="ars-shop-panel" role="dialog" aria-modal="true" aria-label="Armory">
         <div class="ars-shop-head">
           <div>
-            <span class="panel-kicker">OUTPOST QUARTERMASTER</span>
             <h2 class="ars-shop-title">Armory</h2>
           </div>
 

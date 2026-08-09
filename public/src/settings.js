@@ -9,14 +9,15 @@ window.OLW = window.OLW || {};
 
 OLW.Settings = (function () {
   const D = OLW.Device;
-  const DEFAULTS = { sound: true, reticle: 'brackets', shake: true, backup: 'auto', controlMode: 'device' };
+  const DEFAULTS = { sound: true, reticle: 'brackets', shake: true, backup: 'auto', controlMode: 'device', voiceHelp: false };
 
+  // Player-selectable control modes ONLY. AI aim-assist is intentionally NOT
+  // here — it's a system/demo aid and would be an unfair advantage if players
+  // could switch it on. Face + voice modes were removed; hand-cam is the one
+  // hands-free option (move hand to aim, make a fist to fire).
   const CONTROLMODES = [
     { id: 'device', name: 'Mouse / Keys' },
-    // { id: 'assist', name: 'AI aim-assist' },
     { id: 'gesture', name: 'Hand (cam)' },
-    { id: 'face', name: 'Face + blink (cam)' },
-    { id: 'voice', name: 'Voice (mic)' },
   ];
 
   const RETICLES = [
@@ -47,6 +48,7 @@ OLW.Settings = (function () {
   function apply() {
     if (OLW.Audio) OLW.Audio.setMuted(!S.get('sound'));
     if (OLW.Music) OLW.Music.setMuted(!S.get('sound'));
+    if (OLW.Voice && OLW.Voice.evaluate) OLW.Voice.evaluate();   // start/stop voice help
     const mute = document.getElementById('mute-btn');
     if (mute) {
       const on = S.get('sound');
@@ -139,12 +141,12 @@ OLW.Settings = (function () {
       `<button class="set-chip${cm === c.id ? ' sel' : ''}" data-ctrlmode="${c.id}">${c.name}</button>`).join('');
     panel.innerHTML =
       `<div class="set-panel">
-        <div class="set-head"><span class="panel-kicker">SETTINGS</span></div>
         <div class="set-scroll">
           ${toggleRow('Sound', 'sound', 'Music &amp; effects')}
           ${toggleRow('Screen shake', 'shake', 'Camera kick on impacts')}
+          ${toggleRow('Voice help during game', 'voiceHelp', 'Say “war beast”, “dragon”, “backup team”, “supply”, or a weapon name to deploy / switch. Needs mic permission — aiming &amp; firing stay manual.')}
           <div class="set-row set-col"><div class="set-info"><b>Aim reticle</b><small>Saved on this device</small></div><div class="set-chips">${retOpts}</div></div>
-          <div class="set-row set-col"><div class="set-info"><b>Control mode</b><small>Mouse/keys always work as a fallback. Cam/mic modes are experimental.</small></div><div class="set-chips">${cmOpts}</div></div>
+          <div class="set-row set-col"><div class="set-info"><b>Control mode</b><small>Mouse/keys always work as a fallback. Hand-cam: move your hand to aim, make a fist to fire.</small></div><div class="set-chips">${cmOpts}</div></div>
           <div class="set-row set-col"><div class="set-info"><b>Player 2 backup</b><small>If the phone controller loses connection mid-match</small></div><div class="set-chips">${bkOpts}</div></div>
           <div class="set-controls">
             <b>Controls</b>

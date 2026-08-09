@@ -94,6 +94,115 @@ button {
     backdrop-filter: blur(3px)
 }
 
+/* The .panel is the real scroll container (max-height + overflow-y). Kill the
+   horizontal scrollbar the decorative frame was triggering, and reserve the
+   vertical gutter so a scrollbar appearing on hover never shifts / breaks the
+   layout. Applied to every scrollable modal surface. */
+.panel,
+.set-scroll,
+.ars-shop-scroll,
+.set-panel {
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-gutter: stable;
+}
+
+.qr-loading {
+    padding: 40px 12px;
+    color: var(--muted);
+    font-size: 13px;
+    letter-spacing: 1px;
+    text-align: center
+}
+
+/* ---------------------------------------------- BRIEFING CAROUSEL ---------- */
+.how-panel { text-align: center; }
+.brief-carousel {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 16px 0 12px;
+}
+.brief-viewport {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+}
+.brief-track {
+    display: flex;
+    transition: transform .32s ease;
+}
+.brief-slide {
+    flex: 0 0 100%;
+    min-width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 16px;
+    min-height: 190px;
+    justify-content: center;
+}
+.brief-ico {
+    font-size: 48px;
+    line-height: 1;
+    filter: drop-shadow(0 3px 8px rgba(0, 0, 0, .5));
+}
+.brief-step {
+    font-size: 10px;
+    letter-spacing: 3px;
+    font-weight: 900;
+    text-transform: uppercase;
+    color: var(--amber);
+}
+.brief-slide b {
+    font-family: Georgia, serif;
+    font-size: 20px;
+    color: var(--sand);
+}
+.brief-slide p {
+    margin: 2px 0 0;
+    max-width: 340px;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.55;
+}
+.brief-slide p b { font-family: inherit; font-size: inherit; color: var(--gold); }
+.brief-arrow {
+    flex: 0 0 auto;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--line);
+    background: rgba(10, 13, 18, .72);
+    color: var(--sand);
+    font-size: 26px;
+    line-height: 1;
+    cursor: pointer;
+    transition: border-color .12s, color .12s, opacity .12s;
+}
+.brief-arrow:hover { border-color: var(--amber); color: var(--gold); }
+.brief-arrow:disabled { opacity: .3; cursor: default; }
+.brief-dots {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+.brief-dot {
+    width: 8px;
+    height: 8px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, .22);
+    cursor: pointer;
+    transition: background .15s, transform .15s;
+}
+.brief-dot.active { background: var(--gold); transform: scale(1.3); }
+
 .title-screen {
     place-items: stretch;
     background-image: linear-gradient(90deg, rgba(5, 7, 10, .92) 0%, rgba(5, 7, 10, .7) 42%, rgba(5, 7, 10, .12) 75%), linear-gradient(0deg, rgba(5, 7, 10, .85), transparent 45%), url("assets/branding/outpost-title-backdrop.webp");
@@ -271,7 +380,8 @@ button {
 .panel {
     width: min(620px, 96%);
     max-height: 94%;
-    overflow: auto;
+    overflow-y: auto;
+    overflow-x: hidden;   /* never a horizontal scrollbar (the frame overhangs 10px) */
     padding: clamp(20px, 4vmin, 36px);
     text-align: center;
     background: linear-gradient(165deg, rgba(40, 44, 50, .96), rgba(17, 21, 28, .98));
@@ -619,7 +729,8 @@ button {
 .hud-tr {
     position: absolute;
     top: clamp(9px, 2vmin, 17px);
-    right: clamp(9px, 2vmin, 17px);
+    /* keep clear of the fixed fullscreen button (top-right, ~44px wide zone) */
+    right: clamp(52px, 6vmin, 64px);
     display: flex;
     gap: 16px;
     align-items: flex-start
@@ -1613,6 +1724,17 @@ button {
   margin-top: 7px;
 }
 
+/* quick-access "Play with your Phone" (direct solo-phone QR) */
+.phone-solo-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 8px;
+}
+.phone-solo-btn span { font-size: 1.1em; }
+
 .secondary-tile {
   min-height: 49px;
 
@@ -2299,7 +2421,7 @@ and
 }
 
 .volley-btn {
-  min-width: 184px;
+  min-width: 0;
   min-height: 48px;
   border: 1px solid var(--game-edge);
   clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 8px, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px), 0 8px);
@@ -2936,6 +3058,7 @@ and
   max-height: min(760px, 94dvh);
 
   overflow-y: auto;
+  overflow-x: hidden;   /* no horizontal scrollbar (authoritative — beats the earlier `overflow:visible`) */
   overscroll-behavior: contain;
 
   padding: clamp(18px, 3vmin, 34px);
@@ -3071,7 +3194,7 @@ and
 }
 
 .volley-btn {
-  min-width: 184px;
+  min-width: 0;
   min-height: 48px;
 
   border: 1px solid var(--game-edge);

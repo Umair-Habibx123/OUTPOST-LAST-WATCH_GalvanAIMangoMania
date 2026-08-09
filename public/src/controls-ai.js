@@ -1,29 +1,29 @@
 // src/controls-ai.js
-/* Optional AI / hands-free control modes for Player 1. The device mouse+keyboard
-   stay active at ALL times as the fallback (these modes only ADD input), so a
-   denied camera, a failed CDN load, or bad lighting never softlocks the game.
+/* Hands-free control for Player 1. The device mouse+keyboard stay active at ALL
+   times as the fallback (this mode only ADDS input), so a denied camera, a
+   failed CDN load, or bad lighting never softlocks the game.
 
-   Modes (Settings → Control mode):
+   Player-selectable mode (Settings → Control mode):
      device  — mouse aims, click/Space fires (default, always available)
-     assist  — AI aims at the nearest breach; you fire (click/Space)
-     gesture — webcam hand: move to aim, pinch to fire        (MediaPipe Hands)
-     face    — webcam face: head aims, blink to fire          (MediaPipe FaceMesh)
-     voice   — mic: say "fire/left/right/up/down/volley"      (Web Speech API)
+     gesture — webcam hand: move hand to aim, make a FIST to fire (MediaPipe Hands)
 
-   Efficiency: webcam inference is throttled (~20fps), the camera/mic are only
-   opened for the active mode and fully released when you switch away. */
+   'assist' (AI aims at the nearest breach) still exists but is a SYSTEM-only aid
+   for demos/attract mode — it is not exposed in Settings, because auto-aim would
+   be an unfair advantage for a real player. Face + voice modes were removed.
+
+   Efficiency: webcam inference is throttled (~22fps), the camera is only opened
+   for the active mode and fully released when you switch away or hide the tab. */
 window.OLW = window.OLW || {};
 
 OLW.AIControls = (function () {
   const VISION_CDN = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
   const HAND_MODEL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
-  const FACE_MODEL = 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
 
   let mode = 'device';
   let stream = null, video = null, loopId = null, recog = null;
-  let hand = null, faceLm = null, vision = null;
+  let hand = null, vision = null;
   let lastInfer = 0;
-  let fireLatch = false;       // rising-edge fire trigger for pinch/blink
+  let fireLatch = false;       // rising-edge fire trigger (kept for edgeFire helper)
   let statusEl, previewEl;
 
   const G = () => window.OLW_GAME;
@@ -120,81 +120,52 @@ OLW.AIControls = (function () {
         baseOptions: { modelAssetPath: HAND_MODEL, delegate: 'GPU' },
         numHands: 1, runningMode: 'VIDEO',
       });
-      status('Hand control · move to aim, pinch to fire');
+      status('Hand control · move hand to aim · make a fist to fire');
+
+      // aim uses the PALM CENTRE (stable whether the hand is open or a fist), is
+      // amplified around the centre so small hand moves reach the screen edges,
+      // and is exponentially smoothed to kill landmark jitter.
+      let sx = 0.5, sy = 0.5, primed = false;
+      let fistHold = false;                 // hysteresis so fire doesn't flicker
+      const AIM_GAIN = 1.9, SMOOTH = 0.4;
+      const dist = (p, q) => Math.hypot(p.x - q.x, p.y - q.y);
+
       const loop = () => {
         loopId = requestAnimationFrame(loop);
         const now = performance.now();
-        if (now - lastInfer < 50 || !video || video.readyState < 2) return;   // ~20fps
+        if (now - lastInfer < 45 || !video || video.readyState < 2) return;   // ~22fps
         lastInfer = now;
         let res; try { res = hand.detectForVideo(video, now); } catch (e) { return; }
         const lm = res && res.landmarks && res.landmarks[0];
-        if (lm) {
-          const tip = lm[8], thumb = lm[4];
-          aimTo(1 - tip.x, tip.y);                                  // mirror x for natural aim
-          const pinch = Math.hypot(tip.x - thumb.x, tip.y - thumb.y) < 0.06;
-          edgeFire(pinch);
+        if (!lm) return;
+
+        // palm centre = centroid of wrist + the four finger MCP knuckles
+        const palm = [0, 5, 9, 13, 17];
+        let px = 0, py = 0;
+        for (const i of palm) { px += lm[i].x; py += lm[i].y; }
+        px /= palm.length; py /= palm.length;
+
+        let nx = OLW.U.clamp(0.5 + ((1 - px) - 0.5) * AIM_GAIN, 0, 1);  // mirror x
+        let ny = OLW.U.clamp(0.5 + (py - 0.5) * AIM_GAIN, 0, 1);
+        if (!primed) { sx = nx; sy = ny; primed = true; }
+        else { sx += (nx - sx) * SMOOTH; sy += (ny - sy) * SMOOTH; }
+        aimTo(sx, sy);
+
+        // fist = fingers curled: a finger is "extended" when its tip is farther
+        // from the wrist than its middle joint. Fist when 0–1 fingers extended.
+        const wrist = lm[0];
+        const fingers = [[8, 6], [12, 10], [16, 14], [20, 18]];
+        let extended = 0;
+        for (const [tip, pip] of fingers) {
+          if (dist(lm[tip], wrist) > dist(lm[pip], wrist) * 1.05) extended++;
         }
+        // hysteresis: clench (≤1) to start firing, open (≥3) to stop
+        if (!fistHold && extended <= 1) fistHold = true;
+        else if (fistHold && extended >= 3) fistHold = false;
+        if (fistHold) fire();               // auto-fire while fist held (cooldown-limited)
       };
       loop();
     } catch (e) { fallback('Hand tracking unavailable — using mouse/keyboard.', e); }
-  }
-
-  /* ---------------- face + blink ---------------- */
-  async function startFace() {
-    status('Loading face tracking…');
-    try {
-      await getCamera();
-      const v = await loadVision();
-      faceLm = await v.mod.FaceLandmarker.createFromOptions(v.fileset, {
-        baseOptions: { modelAssetPath: FACE_MODEL, delegate: 'GPU' },
-        numFaces: 1, runningMode: 'VIDEO', outputFaceBlendshapes: true,
-      });
-      status('Face control · head aims, blink to fire');
-      const loop = () => {
-        loopId = requestAnimationFrame(loop);
-        const now = performance.now();
-        if (now - lastInfer < 50 || !video || video.readyState < 2) return;
-        lastInfer = now;
-        let res; try { res = faceLm.detectForVideo(video, now); } catch (e) { return; }
-        const f = res && res.faceLandmarks && res.faceLandmarks[0];
-        if (f) {
-          const nose = f[1];
-          // amplify head movement around centre so small tilts reach the edges
-          aimTo(OLW.U.clamp(0.5 + (0.5 - nose.x) * 2.2, 0, 1), OLW.U.clamp(0.5 + (nose.y - 0.5) * 2.2, 0, 1));
-        }
-        const bs = res && res.faceBlendshapes && res.faceBlendshapes[0];
-        if (bs) {
-          const get = (n) => { const c = bs.categories.find(x => x.categoryName === n); return c ? c.score : 0; };
-          edgeFire(get('eyeBlinkLeft') > 0.5 && get('eyeBlinkRight') > 0.5);
-        }
-      };
-      loop();
-    } catch (e) { fallback('Face tracking unavailable — using mouse/keyboard.', e); }
-  }
-
-  /* ---------------- voice ---------------- */
-  function startVoice() {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { fallback('Voice control not supported in this browser.'); return; }
-    try {
-      recog = new SR();
-      recog.continuous = true; recog.interimResults = true; recog.lang = 'en-US';
-      recog.onresult = (ev) => {
-        const g = G(); if (!g) return;
-        const txt = ev.results[ev.results.length - 1][0].transcript.toLowerCase();
-        const nudge = 0.12;
-        if (/\b(fire|shoot|shot|hit)\b/.test(txt)) fire();
-        if (/\bleft\b/.test(txt)) g.setAim(g.aim.x - nudge * W(), g.aim.y);
-        if (/\bright\b/.test(txt)) g.setAim(g.aim.x + nudge * W(), g.aim.y);
-        if (/\bup\b/.test(txt)) g.setAim(g.aim.x, g.aim.y - nudge * H());
-        if (/\bdown\b/.test(txt)) g.setAim(g.aim.x, g.aim.y + nudge * H());
-        if (/\bvolley\b/.test(txt) && g.useVolley) g.useVolley();
-      };
-      recog.onend = () => { if (mode === 'voice' && recog) { try { recog.start(); } catch (e) {} } };
-      recog.onerror = (e) => { if (e && (e.error === 'not-allowed' || e.error === 'service-not-allowed')) fallback('Microphone blocked — using mouse/keyboard.'); };
-      recog.start();
-      status('Voice control · say "fire", "left/right/up/down", "volley"');
-    } catch (e) { fallback('Voice control unavailable — using mouse/keyboard.', e); }
   }
 
   function fallback(msg, err) {
@@ -214,8 +185,8 @@ OLW.AIControls = (function () {
     if (mode === 'device') return;
     if (mode === 'assist') { status('AI aim-assist · you fire, it aims'); setTimeout(() => { if (mode === 'assist') status(''); }, 3500); return; }
     if (mode === 'gesture') return startGesture();
-    if (mode === 'face') return startFace();
-    if (mode === 'voice') return startVoice();
+    // any unknown/removed mode falls back to device
+    return fallback('Using mouse/keyboard.');
   }
 
   function init() {
@@ -226,7 +197,7 @@ OLW.AIControls = (function () {
     window.addEventListener('olw:controlmode', (e) => setMode(e.detail));
     applyFromSettings();
     // release the camera if the tab is hidden (efficiency)
-    document.addEventListener('visibilitychange', () => { if (document.hidden && (mode === 'gesture' || mode === 'face')) stopAll(); else if (!document.hidden) applyFromSettings(); });
+    document.addEventListener('visibilitychange', () => { if (document.hidden && mode === 'gesture') stopAll(); else if (!document.hidden) applyFromSettings(); });
   }
 
   init();

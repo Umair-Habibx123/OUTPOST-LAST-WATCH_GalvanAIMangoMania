@@ -552,9 +552,70 @@
             Fire
           </button>
         </div>
+
+        <!-- versus attacker UI (shown instead of aim/fire when mode = versus) -->
+        <div id="attacker-panel" class="attacker-panel hidden">
+          <div class="attacker-hint">
+            Tap around the ring to send raiders at that side ·
+            <b id="atk-timer">--</b>
+          </div>
+
+          <div id="spawn-pad" class="spawn-pad">
+            <div class="spawn-core">WALL</div>
+            <div class="spawn-arrow" id="spawn-arrow"></div>
+          </div>
+
+          <div class="atk-types">
+            <button class="atk-type selected" data-type="basic">Basic</button>
+            <button class="atk-type" data-type="fast">Fast</button>
+            <button class="atk-type" data-type="tough">Tough</button>
+          </div>
+        </div>
       </section>
     </main>
   </div>
+
+  <style id="attacker-skin">
+    .attacker-panel { display: flex; flex-direction: column; align-items: center; gap: 14px; flex: 1; min-height: 0; }
+    .attacker-panel.hidden { display: none; }
+    .attacker-hint { font-size: 13px; color: #d8cdb5; text-align: center; }
+    .attacker-hint b { color: #f5c36b; }
+    .spawn-pad {
+      position: relative;
+      width: min(78vw, 320px);
+      aspect-ratio: 1 / 1;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 50% 50%, rgba(232,161,58,.10), rgba(10,13,18,.6) 62%),
+        repeating-conic-gradient(from 0deg, rgba(255,255,255,.05) 0deg 44deg, transparent 44deg 45deg);
+      border: 2px solid #5a4a2e;
+      touch-action: none;
+      cursor: crosshair;
+      display: grid;
+      place-items: center;
+    }
+    .spawn-core {
+      width: 34%; height: 34%; border-radius: 50%;
+      display: grid; place-items: center;
+      background: rgba(20,26,34,.92); border: 1px solid #6c6457;
+      color: #9e988b; font-size: 11px; font-weight: 900; letter-spacing: 1px;
+      pointer-events: none;
+    }
+    .spawn-arrow {
+      position: absolute; left: 50%; top: 50%;
+      width: 3px; height: 42%;
+      background: linear-gradient(#f5c36b, transparent);
+      transform-origin: bottom center; transform: translate(-50%, -100%) rotate(0deg);
+      opacity: 0; pointer-events: none; transition: opacity .25s;
+    }
+    .atk-types { display: flex; gap: 10px; }
+    .atk-type {
+      padding: 10px 16px; border-radius: 8px; border: 1px solid #4a4638;
+      background: rgba(10,13,18,.7); color: #e9dfcb; font-weight: 800; font-size: 14px;
+      cursor: pointer;
+    }
+    .atk-type.selected { border-color: #e8a13a; background: rgba(40,32,16,.9); color: #f5c36b; }
+  </style>
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="src/controller.js"></script>
