@@ -145,6 +145,21 @@ OLW.Settings = (function () {
           ${toggleRow('Sound', 'sound', 'Music &amp; effects')}
           ${toggleRow('Screen shake', 'shake', 'Camera kick on impacts')}
           ${toggleRow('Voice help during game', 'voiceHelp', 'Say “war beast”, “dragon”, “backup team”, “supply”, or a weapon name to deploy / switch. Needs mic permission — aiming &amp; firing stay manual.')}
+          <div class="set-row voice-help-row">
+  <div class="set-info">
+    <b>Voice Command Codex</b>
+    <small>
+      See every accepted command, alternate phrase and battle cry.
+    </small>
+  </div>
+
+  <button
+    type="button"
+    class="set-chip voice-codex-open"
+  >
+    View Commands
+  </button>
+</div>
           <div class="set-row set-col"><div class="set-info"><b>Aim reticle</b><small>Saved on this device</small></div><div class="set-chips">${retOpts}</div></div>
           <div class="set-row set-col"><div class="set-info"><b>Control mode</b><small>Mouse/keys always work as a fallback. Hand-cam: move your hand to aim, make a fist to fire.</small></div><div class="set-chips">${cmOpts}</div></div>
           <div class="set-row set-col"><div class="set-info"><b>Player 2 backup</b><small>If the phone controller loses connection mid-match</small></div><div class="set-chips">${bkOpts}</div></div>
@@ -171,6 +186,14 @@ OLW.Settings = (function () {
       window.dispatchEvent(new CustomEvent('olw:controlmode', { detail: m }));  // switch live
       if (OLW.Audio) OLW.Audio.resume();
     });
+    panel
+  .querySelector('.voice-codex-open')
+  ?.addEventListener(
+    'click',
+    () => {
+      OLW.Voice?.openGuide?.();
+    }
+  );
   }
 
   function openPanel() { if (!panel) { panel = el('div', 'set-overlay hidden'); (document.getElementById('stage') || document.body).appendChild(panel); } renderPanel(); panel.classList.remove('hidden'); }

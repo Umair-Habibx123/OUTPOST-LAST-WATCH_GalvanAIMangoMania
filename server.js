@@ -205,7 +205,8 @@ app.post(
             waves_cleared,
             kills,
             perfect_waves,
-            total_score
+            total_score,
+            created_at
           )
           VALUES (
             ${matchId},
@@ -216,24 +217,26 @@ app.post(
             ${entry.kills},
             ${entry.perfectWaves},
             ${entry.score}
+            NOW()
           )
         `,
 
         sql`
           INSERT INTO leaderboard_entries (
-            id,
-            match_id,
-            display_name,
-            company,
-            player_name,
-            mode,
-            map_id,
-            score,
-            duration_seconds,
-            waves_cleared,
-            kills,
-            device_id
-          )
+  id,
+  match_id,
+  display_name,
+  company,
+  player_name,
+  mode,
+  map_id,
+  score,
+  duration_seconds,
+  waves_cleared,
+  kills,
+  device_id,
+  created_at
+)
           VALUES (
             ${leaderboardId},
             ${matchId},
@@ -246,7 +249,8 @@ app.post(
             ${entry.durationSeconds},
             ${entry.wavesCleared},
             ${entry.kills},
-            ${entry.deviceId || null}
+            ${entry.deviceId || null},
+            NOW()
           )
         `
       ]);
@@ -262,6 +266,115 @@ app.post(
         ok: false,
         message: 'Unable to save the score.'
       });
+    }
+  }
+);
+
+app.patch(
+  '/api/leaderboard/:id',
+  scoreLimiter,
+  async (request, response) => {
+    try {
+      const leaderboardId =
+        String(request.params.id || '');
+
+      const company =
+        String(
+          request.body?.company || ''
+        )
+          .trim()
+          .slice(0, 40);
+
+      const playerName =
+        String(
+          request.body?.playerName || ''
+        )
+          .trim()
+          .slice(0, 40);
+
+      const deviceId =
+        String(
+          request.body?.deviceId || ''
+        )
+          .trim()
+          .slice(0, 128);
+
+      if (
+        !leaderboardId ||
+        !company ||
+        !playerName ||
+        !deviceId
+      ) {
+        response
+          .status(400)
+          .json({
+            ok: false,
+            message:
+              'Company and player name are required.'
+          });
+
+        return;
+      }
+
+      const displayName =
+        `${company} - ${playerName}`
+          .slice(0, 100);
+
+      /*
+       * device_id check prevents another browser from
+       * renaming somebody else's run.
+       */
+      const rows = await sql`
+        UPDATE leaderboard_entries
+
+        SET
+          company = ${company},
+          player_name = ${playerName},
+          display_name = ${displayName}
+
+        WHERE
+          id = ${leaderboardId}
+          AND device_id = ${deviceId}
+
+        RETURNING
+          id,
+          display_name AS "displayName",
+          company,
+          player_name AS "playerName",
+          score,
+          created_at AS "createdAt"
+      `;
+
+      if (!rows.length) {
+        response
+          .status(404)
+          .json({
+            ok: false,
+            message:
+              'Score entry was not found.'
+          });
+
+        return;
+      }
+
+      response.json({
+        ok: true,
+        entry: rows[0]
+      });
+
+    } catch (error) {
+      console.error(
+        'Leaderboard signing failed',
+        error
+      );
+
+      response
+        .status(500)
+        .json({
+          ok: false,
+          message:
+            'Unable to sign the Watch Roll.'
+        });
     }
   }
 );

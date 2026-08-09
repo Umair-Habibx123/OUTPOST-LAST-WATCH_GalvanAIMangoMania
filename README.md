@@ -62,7 +62,7 @@ Create a room → a **QR code / room code** lets a second player join **on their
 
 `The Watch Roll` — the in-game board shows the **top 10** of the current event day from Neon (`/api/leaderboard`). Every finished run is recorded with a timestamp, so the database keeps the full history even though only ten show in-game.
 
-Players sign the roll as **`[Company name] - [Player name]`** (both optional). A score is saved automatically on any exit from the game-over screen **unless** the player taps *Continue without saving*.
+Players sign the roll as **`[Company name] - [Player name]`** (both optional). A score is saved automatically on any exit from the game-over screen.
 
 **Host tools** (need `ADMIN_SECRET` in the env):
 

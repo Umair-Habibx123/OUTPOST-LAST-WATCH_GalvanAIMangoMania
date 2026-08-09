@@ -60,6 +60,67 @@ OLW.Leaderboard = (function () {
       return parseResponse(response);
     },
 
+    async signEntry(
+  id,
+  {
+    company,
+    playerName
+  }
+) {
+  if (!id) {
+    throw new Error(
+      'Leaderboard entry has not been recorded yet.'
+    );
+  }
+
+  const cleanCompany =
+    String(company || '')
+      .trim()
+      .slice(0, 40);
+
+  const cleanPlayer =
+    String(playerName || '')
+      .trim()
+      .slice(0, 40);
+
+  if (!cleanCompany) {
+    throw new Error(
+      'Enter the company name.'
+    );
+  }
+
+  if (!cleanPlayer) {
+    throw new Error(
+      'Enter the player name.'
+    );
+  }
+
+  const response = await fetch(
+    `/api/leaderboard/${encodeURIComponent(id)}`,
+    {
+      method: 'PATCH',
+
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json'
+      },
+
+      body: JSON.stringify({
+        deviceId:
+          OLW.Device?.id || undefined,
+
+        company:
+          cleanCompany,
+
+        playerName:
+          cleanPlayer
+      })
+    }
+  );
+
+  return parseResponse(response);
+},
+
     async submit(entry) {
       const payload = {
         displayName:

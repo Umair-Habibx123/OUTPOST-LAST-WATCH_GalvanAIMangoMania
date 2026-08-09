@@ -221,6 +221,66 @@ if (
   });
 }
   }
+async function recordCompletedWatch(result) {
+  if (!result) return null;
+
+  if (result._recordPromise) {
+    return result._recordPromise;
+  }
+
+  result._recordPromise = (async () => {
+    try {
+      const response =
+        await OLW.Leaderboard.submit({
+          name: 'Unclaimed Guard',
+
+          company: '',
+          playerName: '',
+
+          mode:
+            (
+              OLW.Multiplayer?.mode === 'coop' ||
+              OLW.Multiplayer?.mode === 'versus'
+            )
+              ? OLW.Multiplayer.mode
+              : 'solo',
+
+          mapId:
+            OLW.Maps?.currentId ||
+            OLW.Multiplayer?.mapId ||
+            'frontier',
+
+          score: result.score,
+          time: result.time,
+          waves: result.waves,
+          kills: result.kills,
+          perfectWaves:
+            result.perfectWaves
+        });
+
+      result._leaderboardId =
+        response?.id || null;
+
+      result._recorded = true;
+
+      return response;
+
+    } catch (error) {
+      console.error(
+        'Automatic score recording failed:',
+        error
+      );
+
+      result._recorded = false;
+
+      return null;
+    }
+  })();
+
+  return result._recordPromise;
+}
+
+  
 
   function onGameOver(res) {
     lastResult = res;
@@ -230,6 +290,18 @@ if (
     $('res-waves').textContent = res.waves;
     $('res-kills').textContent = res.kills;
     $('res-score').textContent = res.score;
+
+    res._recorded = false;
+res._leaderboardId = null;
+res._signed = false;
+
+/*
+ * IMPORTANT:
+ * Record every completed game immediately.
+ *
+ * Do not wait for the player to enter their name.
+ */
+recordCompletedWatch(res);
 
     const overTitle = document.querySelector('#screen-over .panel-title');
     if (res.versus) {
@@ -312,6 +384,17 @@ if (
       return true;
     }
 
+    const voiceGuide =
+  document.querySelector(
+    '.voice-guide-overlay:not(.hidden)'
+  );
+
+if (voiceGuide) {
+  OLW.Voice?.closeGuide?.();
+
+  return true;
+}
+
     const settings = document.querySelector('.set-overlay:not(.hidden)');
     if (settings) {
       if (OLW.Settings?.close) OLW.Settings.close();
@@ -336,7 +419,9 @@ if (
 
     // Closing the game-over screen (X / Esc / backdrop) counts as "keep my
     // score" — only "Continue without saving" opts out.
-    if (visible === 'over') commitScoreIfNeeded();
+   if (visible === 'over') {
+  recordCompletedWatch(lastResult);
+}
 
     showScreen('title');
     return true;
@@ -454,6 +539,14 @@ function briefGo(i) {
   }
   document.querySelector('.brief-prev')?.addEventListener('click', () => briefGo(briefIdx - 1));
   document.querySelector('.brief-next')?.addEventListener('click', () => briefGo(briefIdx + 1));
+  document
+  .querySelector('.brief-voice-codex')
+  ?.addEventListener(
+    'click',
+    () => {
+      OLW.Voice?.openGuide?.();
+    }
+  );
   // arrow keys while the manual is open
   window.addEventListener('keydown', (e) => {
     const how = document.getElementById('screen-how');
@@ -565,15 +658,21 @@ $('btn-save-score').addEventListener(
   });
 });
 
-$('btn-retry').addEventListener('click', async () => {
-  await commitScoreIfNeeded();
-  startGameWithLoader();
-});
+$('btn-retry').addEventListener(
+  'click',
+  () => {
+    recordCompletedWatch(lastResult);
+    startGameWithLoader();
+  }
+);
 
-$('btn-menu').addEventListener('click', async () => {
-  await commitScoreIfNeeded();
-  showScreen('title');
-});
+$('btn-menu').addEventListener(
+  'click',
+  () => {
+    recordCompletedWatch(lastResult);
+    showScreen('title');
+  }
+);
 
 $('btn-settings-launch')?.addEventListener(
   'click',
@@ -584,13 +683,35 @@ $('btn-settings-launch')?.addEventListener(
 $('btn-skip-score')
   ?.addEventListener(
     'click',
-    () => {
+    async () => {
       if (!lastResult) return;
-      lastResult._skipped = true;
-      $('btn-save-score').disabled = true;
-      const s = $('save-status');
-      s.textContent = 'Score not saved.';
-      s.className = 'save-status muted';
+
+      /*
+       * The score is NOT discarded.
+       * Only the participant identity remains unclaimed.
+       */
+      await recordCompletedWatch(
+        lastResult
+      );
+
+      lastResult._signed = false;
+
+      const status =
+        $('save-status');
+
+      status.textContent =
+        'Score recorded without a name.';
+
+      status.className =
+        'save-status muted';
+
+      $('btn-save-score').disabled =
+        false;
+
+      /*
+       * Continue to menu immediately if desired:
+       */
+      showScreen('title');
     }
   );
 
@@ -613,37 +734,120 @@ $('btn-skip-score')
   }
 
   async function saveScore() {
-    if (!lastResult || lastResult._saved || lastResult._skipped) return;
-    lastResult._saved = true; // guard against double-submit / rapid clicks
-    const company = ($('company-input').value || '').trim().slice(0, 40);
-    const player = ($('name-input').value || '').trim().slice(0, 24);
-    // remember the company so the next run pre-fills it
-    if (company && OLW.Device?.patch) OLW.Device.patch({ company });
-    const s = $('save-status');
-    try {
-      await OLW.Leaderboard.submit({
-        name: buildDisplayName(),
-        company,
-        playerName: player,
-        // leaderboard only recognises solo/coop/versus — solo-phone is a solo run
-        mode: (OLW.Multiplayer?.mode === 'coop' || OLW.Multiplayer?.mode === 'versus')
-          ? OLW.Multiplayer.mode : 'solo',
-        mapId: OLW.Multiplayer?.mapId || 'frontier',
-        score: lastResult.score,
-        time: lastResult.time,
-        waves: lastResult.waves,
-        kills: lastResult.kills,
-        perfectWaves: lastResult.perfectWaves
-      });
-      $('btn-save-score').disabled = true;
-      s.textContent = 'Saved to the Watch Roll ✓';
-      s.className = 'save-status ok';
-    } catch (err) {
-      lastResult._saved = false; // let them retry
-      s.textContent = 'Could not save — tap Save Score to retry.';
-      s.className = 'save-status err';
-    }
+  if (!lastResult) {
+    return;
   }
+
+  if (lastResult._signed) {
+    return;
+  }
+
+  const company =
+    ($('company-input').value || '')
+      .trim()
+      .slice(0, 40);
+
+  const player =
+    ($('name-input').value || '')
+      .trim()
+      .slice(0, 24);
+
+  const status =
+    $('save-status');
+
+  if (!company) {
+    status.textContent =
+      'Enter your company name.';
+
+    status.className =
+      'save-status err';
+
+    $('company-input').focus();
+
+    return;
+  }
+
+  if (!player) {
+    status.textContent =
+      'Enter your player name.';
+
+    status.className =
+      'save-status err';
+
+    $('name-input').focus();
+
+    return;
+  }
+
+  $('btn-save-score').disabled = true;
+
+  status.textContent =
+    'Signing your Watch Roll entry…';
+
+  status.className =
+    'save-status muted';
+
+  /*
+   * Normally this is already finished because it started
+   * immediately at game over.
+   */
+  await recordCompletedWatch(
+    lastResult
+  );
+
+  if (!lastResult._leaderboardId) {
+    $('btn-save-score').disabled = false;
+
+    status.textContent =
+      'Score could not be recorded. Tap again to retry.';
+
+    status.className =
+      'save-status err';
+
+    /*
+     * Allow recordCompletedWatch() to retry.
+     */
+    lastResult._recordPromise = null;
+
+    return;
+  }
+
+  try {
+    await OLW.Leaderboard.signEntry(
+      lastResult._leaderboardId,
+      {
+        company,
+        playerName: player
+      }
+    );
+
+    lastResult._signed = true;
+
+    /*
+     * Remember company for the next participant flow
+     * only if that is useful on your event kiosk.
+     *
+     * If many companies share one kiosk, REMOVE this.
+     */
+    // OLW.Device?.patch?.({ company });
+
+    status.textContent =
+      `Signed as ${company} - ${player} ✓`;
+
+    status.className =
+      'save-status ok';
+
+  } catch (error) {
+    $('btn-save-score').disabled = false;
+
+    status.textContent =
+      error?.message ||
+      'Unable to sign the Watch Roll.';
+
+    status.className =
+      'save-status err';
+  }
+}
 
   async function renderScores() {
     const list = $('score-list');
@@ -851,6 +1055,8 @@ async function startSharedRoom() {
       'Unable to start the match.';
   }
 }
+
+
 
 async function cancelSharedRoom() {
   await OLW.Multiplayer.cancelRoom();

@@ -387,6 +387,29 @@
                       <b>Earn &amp; spend coins</b>
                       <p>+8 per raider · +50 per perfect wave · +30 per mango cart. Spend them in the <b>Armory</b> on weapons, ammo &amp; upgrades.</p>
                     </div>
+                   <div class="brief-slide">
+  <div class="brief-ico">🎙</div>
+
+  <span class="brief-step">
+    VOICE COMMANDS
+  </span>
+
+  <b>Call your gear</b>
+
+  <p>
+    Enable <b>Voice Help</b> in Settings.
+    Say commands such as <b>“Dracarys”</b>,
+    <b>“War Beast”</b>, <b>“Reinforcements”</b>
+    or a weapon name.
+  </p>
+
+  <button
+    type="button"
+    class="secondary-btn brief-voice-codex"
+  >
+    View All Voice Commands
+  </button>
+</div>
                   </div>
                 </div>
 
@@ -444,28 +467,36 @@
   id="name-entry"
   class="name-entry"
 >
-  <label for="company-input">
-    Sign the roll
-    <span class="optional-label">
-      Company &amp; player — optional
-    </span>
-  </label>
+  <label>
+  Sign your Watch Roll entry
+</label>
 
-  <div class="name-fields">
-    <input
-      id="company-input"
-      maxlength="40"
-      placeholder="Company name"
-      autocomplete="organization"
-    />
-    <span class="name-sep">—</span>
-    <input
-      id="name-input"
-      maxlength="24"
-      placeholder="Player name"
-      autocomplete="off"
-    />
-  </div>
+<div class="name-format-hint">
+  Your leaderboard name will appear as:
+  <b>[Company] - [Player]</b>
+</div>
+
+ <div class="name-fields">
+
+  <input
+    id="company-input"
+    maxlength="40"
+    placeholder="Company name"
+    autocomplete="organization"
+  />
+
+  <span class="name-sep">
+    —
+  </span>
+
+  <input
+    id="name-input"
+    maxlength="24"
+    placeholder="Player name"
+    autocomplete="off"
+  />
+
+</div>
 
   <div class="name-row">
     <button
@@ -474,12 +505,12 @@
     >
       Save Score
     </button>
-    <button
-      id="btn-skip-score"
-      class="link-btn skip-score-btn"
-    >
-      Continue without saving
-    </button>
+   <button
+  id="btn-skip-score"
+  class="link-btn skip-score-btn"
+>
+  Continue without signing
+</button>
   </div>
 
   <p id="save-status" class="save-status" aria-live="polite"></p>
