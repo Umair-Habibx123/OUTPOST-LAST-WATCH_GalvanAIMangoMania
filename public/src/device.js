@@ -42,14 +42,46 @@ OLW.Device = (function () {
       stash: 0, unlocked: ['sidearm'], ammo: {}, items: {}, upgrades: {}, weaponLevels: {},
       xp: 0, level: 1, settings: {},
       loadout: 'sidearm', map: 'frontier', bestScore: 0, name: '', company: '',
+      versusWins: 0, versusLosses: 0,
     };
   }
 
+  /* ---------- settings mirror (display prefs ONLY) ----------
+     Economy stays server-authoritative and is never cached. Settings are
+     different: they must be readable SYNCHRONOUSLY on the very first frame.
+     They used to live only in the server profile, which arrives ~1s after
+     boot — so with sound turned off the music still played that first second
+     and then cut out once /api/profile resolved. Mirroring just the settings
+     object in localStorage closes that window. The server copy still wins the
+     moment it lands; this is a cache, not a source of truth. */
+  const SETTINGS_KEY = 'olw_settings_v1';
+  function readCachedSettings() {
+    try {
+      const raw = localStorage.getItem(SETTINGS_KEY);
+      const parsed = raw ? JSON.parse(raw) : null;
+      return (parsed && typeof parsed === 'object') ? parsed : {};
+    } catch (e) { return {}; }
+  }
+  function cacheSettings(s) {
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s || {})); } catch (e) {}
+  }
+
   let profile = defaults();   // in-memory only; replaced by the server copy
+  profile.settings = readCachedSettings();   // available before the first paint
   let synced = false;
 
   function applyServerProfile(p) {
-    if (p && typeof p === 'object') profile = Object.assign(defaults(), p);
+    if (p && typeof p === 'object') {
+      const cached = profile.settings || {};
+      profile = Object.assign(defaults(), p);
+      // A device that has never written prefs comes back with {} — don't let
+      // that erase what this browser already had.
+      const fromServer = p.settings;
+      profile.settings = (fromServer && Object.keys(fromServer).length)
+        ? fromServer
+        : cached;
+      cacheSettings(profile.settings);
+    }
     window.dispatchEvent(new CustomEvent('olw:profilesync'));
   }
 
@@ -77,6 +109,7 @@ OLW.Device = (function () {
     Object.assign(pendingPrefs, delta);
     Object.assign(profile, delta);                 // reflect locally for snappy UI
     if (prefTimer) clearTimeout(prefTimer);
+    if ('settings' in delta) cacheSettings(delta.settings);   // instant on next boot
     prefTimer = setTimeout(async () => {
       const prefs = pendingPrefs; pendingPrefs = {}; prefTimer = null;
       const res = await post('/api/profile', {
@@ -89,7 +122,12 @@ OLW.Device = (function () {
           map: prefs.map,
         },
       });
-      if (res && res.ok && res.profile) profile = Object.assign(defaults(), res.profile);
+      if (res && res.ok && res.profile) {
+        const local = profile.settings;
+        profile = Object.assign(defaults(), res.profile);
+        // never let a round-trip clobber a setting the player just changed
+        profile.settings = local;
+      }
     }, 600);
   }
 
@@ -126,6 +164,18 @@ OLW.Device = (function () {
       const res = await post('/api/run', { deviceId: id, stats });
       if (res && res.ok && res.profile) applyServerProfile(res.profile);
       return res;
+    },
+
+    // 1v1 win/loss record. Updates locally for instant display, then persists
+    // server-side (server stays the source of truth).
+    recordVersus(outcome) {
+      profile.versusWins = profile.versusWins || 0;
+      profile.versusLosses = profile.versusLosses || 0;
+      if (outcome === 'win') profile.versusWins += 1; else profile.versusLosses += 1;
+      post('/api/versus-result', { deviceId: id, outcome })
+        .then((res) => { if (res && res.ok && res.profile) applyServerProfile(res.profile); })
+        .catch(() => {});
+      return { versusWins: profile.versusWins, versusLosses: profile.versusLosses };
     },
   };
 

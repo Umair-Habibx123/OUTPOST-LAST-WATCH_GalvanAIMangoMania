@@ -433,40 +433,70 @@ export async function handleDisconnect(socketId) {
   const room = findRoomBySocket(socketId);
   if (!room) return null;
 
-  let disconnectedRole = null;
+  const isHost = room.hostSocketId === socketId;
+  const isController = room.controllerSocketId === socketId;
+  const role = isHost ? 'host' : (isController ? 'controller' : null);
+  if (!role) return null;
 
-  if (room.hostSocketId === socketId) {
-    room.hostSocketId = null;
-    room.hostReady = false;
-    disconnectedRole = 'host';
+  const wasActive = room.status === 'active';
 
-    await sql`
-      UPDATE game_rooms
-      SET host_socket_id = NULL, host_ready = FALSE
-      WHERE room_code = ${room.code}
-    `;
-  }
+  /* CO-OP EXCEPTION.
+     Co-op is a shared watch, not a duel: the host IS the game. If Player 2's
+     phone drops mid-match the wall is still standing and the host must keep
+     playing, so the room stays alive (the host's backup controls take over
+     P2, and the phone can resume straight back into its seat). Closing the
+     room here was what made a P2 dropout end the host's run too.
 
-  if (room.controllerSocketId === socketId) {
+     The host leaving still ends it for both — without the host there is no
+     game left to play. Versus keeps its duel semantics: whoever is still
+     connected wins by forfeit. */
+  if (wasActive && isController && room.mode === 'coop') {
     room.controllerSocketId = null;
     room.controllerReady = false;
-    disconnectedRole = 'controller';
+    await sql`
+      UPDATE game_rooms
+      SET controller_socket_id = NULL, controller_ready = FALSE
+      WHERE room_code = ${room.code}
+    `;
+    return {
+      roomCode: room.code,
+      disconnectedRole: role,
+      room: publicRoom(room),
+      closed: false,
+      matchLive: true
+    };
+  }
 
-    if (room.status !== 'active') room.status = 'waiting';
+  // A dropped socket (grace already expired) ends the room when EITHER the match
+  // was live, OR the HOST left the lobby (no game without a host). The peer who
+  // is still connected is the winner of a live match.
+  if (wasActive || isHost) {
+    const winnerRole = wasActive ? (isHost ? 'controller' : 'host') : null;
+    room.status = 'finished';
+    if (isHost) { room.hostSocketId = null; room.hostReady = false; }
+    if (isController) { room.controllerSocketId = null; room.controllerReady = false; }
 
     await sql`
       UPDATE game_rooms
-      SET
-        controller_socket_id = NULL,
-        controller_ready = FALSE,
-        status = CASE WHEN status = 'active' THEN status ELSE 'waiting' END
+      SET status = 'finished', finished_at = NOW(),
+          host_socket_id = CASE WHEN ${isHost} THEN NULL ELSE host_socket_id END,
+          controller_socket_id = CASE WHEN ${isController} THEN NULL ELSE controller_socket_id END
       WHERE room_code = ${room.code}
     `;
+    activeRooms.delete(room.code);
+
+    return { roomCode: room.code, disconnectedRole: role, room: publicRoom(room), closed: true, winnerRole, mode: room.mode };
   }
 
-  return {
-    roomCode: room.code,
-    disconnectedRole,
-    room: publicRoom(room)
-  };
+  // lobby + controller left → free the seat, keep the room open for a new joiner
+  room.controllerSocketId = null;
+  room.controllerReady = false;
+  room.status = 'waiting';
+  await sql`
+    UPDATE game_rooms
+    SET controller_socket_id = NULL, controller_ready = FALSE, status = 'waiting'
+    WHERE room_code = ${room.code}
+  `;
+
+  return { roomCode: room.code, disconnectedRole: role, room: publicRoom(room), closed: false };
 }

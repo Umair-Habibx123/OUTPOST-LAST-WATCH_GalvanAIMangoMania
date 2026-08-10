@@ -52,11 +52,21 @@ All coins/unlocks/ammo/upgrades live in **Neon**, keyed by a per-device id. The 
 
 ## Controls & accessibility (Settings)
 
-Device mouse/keyboard is always active as the fallback. Selectable **control modes**: Device, **AI aim-assist**, **Hand gesture** (webcam), **Face + blink** (webcam), **Voice** (mic). Also: sound, reticle style, screen-shake, and **Player-2 backup** (if the phone controller drops mid-match, the host drives P2 via AI auto-defend / keyboard).
+Device mouse/keyboard is always active as the fallback. Selectable **control modes**: Device, **AI aim-assist**, **Hand gesture** (webcam), **Face + blink** (webcam), **Voice** (mic). Also: sound, reticle style, screen-shake, and **Player-2 backup** (if the phone controller drops mid-match, the host can drive P2 via AI auto-defend / keyboard — note that **auto-defend never engages in co-op**, where an abandoned post stays empty).
 
 ## Multiplayer (Shared Watch)
 
 Create a room → a **QR code / room code** lets a second player join **on their phone as a controller** (Play Together or Play Against). Realtime via Socket.IO with a **persistent client id + 20s reconnect grace**, so a refresh rejoins the same seat instead of dropping.
+
+Both wardens stand on the wall as **separate figures** with independent facing, aim and firing animation. There is **no pause** — a watch runs until it is won or lost.
+
+**Co-op loss rules.** Player 1 *is* the outpost: if they leave, the run is over for both. If Player 2 drops, Player 1 fights on and their post simply stands **empty** — no AI takes it over — until they reconnect. Both players get a toast and a spoken line either way.
+
+### HD adaptive screen mirror
+
+The phone sees the kiosk's screen as a real **Full-HD WebRTC video stream**, not a slideshow of stills. It runs **adaptive-bitrate (ABR) logic** — the same closed control loop YouTube uses over DASH — switching between 240p and 1080p60 renditions based on the playout buffer, packet loss and measured uplink headroom.
+
+📄 **[docs/adaptive-streaming.md](docs/adaptive-streaming.md)** — how it works, how the DASH model maps onto WebRTC (and the one place it *doesn't*), the gotchas, and how to reuse `public/src/stream.js` in another project.
 
 ## Leaderboard
 
@@ -78,9 +88,10 @@ database/                 schema.sql · setup.js
 public/index.html         markup: canvas, HUD, all screens
 public/styles*.css        base · responsive · ui-assets (asset-driven skin)
 public/src/               config, utils, assets, audio, device, leaderboard, multiplayer,
-                          entities, waves, render, game, arsenal, maps, settings,
+                          stream, entities, waves, render, game, arsenal, maps, settings,
                           backup-controls, controls-ai, controller, main
 public/assets/            art/characters · art/maps · art/ui · art/icons · branding
+docs/                     adaptive-streaming.md (WebRTC ABR mirror)
 ```
 
 ## Deploy

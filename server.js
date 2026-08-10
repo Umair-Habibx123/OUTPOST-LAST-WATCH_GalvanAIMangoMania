@@ -601,6 +601,24 @@ app.post('/api/run', async (request, response) => {
   }
 });
 
+// 1v1 win/loss tally (versus history). Low-stakes, so a simple increment.
+app.post('/api/versus-result', async (request, response) => {
+  const deviceId = String(request.body?.deviceId || '').slice(0, 128);
+  const outcome = request.body?.outcome === 'win' ? 'win' : (request.body?.outcome === 'loss' ? 'loss' : null);
+  if (!deviceId || !outcome) { response.status(400).json({ ok: false, message: 'deviceId and outcome required.' }); return; }
+  try {
+    const profile = await loadProfile(deviceId);
+    profile.versusWins = Math.max(0, Math.floor(Number(profile.versusWins) || 0));
+    profile.versusLosses = Math.max(0, Math.floor(Number(profile.versusLosses) || 0));
+    if (outcome === 'win') profile.versusWins += 1; else profile.versusLosses += 1;
+    await saveProfile(deviceId, profile);
+    response.json({ ok: true, profile });
+  } catch (error) {
+    console.error('Versus result save failed', error);
+    response.status(500).json({ ok: false, message: 'Unable to save result.' });
+  }
+});
+
 app.use(
   express.static(publicDirectory, {
     extensions: ['html'],

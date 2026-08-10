@@ -1174,21 +1174,24 @@ if (
     P.strikeAt = function (ax, ay, slot) {
       const ready = slot === 2 ? this.player2StrikeCd <= 0 : this.strikeCd <= 0;
 
-      if (slot !== 2 && ready && !A.current.starter && A.runAmmo(A.current.id) <= 0) {
+      // Both players share the host's active weapon + ammo pool, so a co-op
+      // Player 2 fires whatever the host is wielding (auto-swaps to sidearm when
+      // the shared weapon runs dry — for whoever pulls the trigger).
+      if (ready && !A.current.starter && A.runAmmo(A.current.id) <= 0) {
         A.current = SIDEARM;
         renderBar();
       }
 
       const result = origStrikeAt.call(this, ax, ay, slot);
 
-      if (slot !== 2 && ready) {
+      if (ready) {
         const w = A.current;
         if (!w.starter) A.consume(w.id, 1);
-        // weapon cadence × Rapid Reload upgrade
-        if (this.strikeCd > 0) {
-          const reloadF = 1 - 0.06 * D.upgradeLevel('reload');
-          this.strikeCd = OLW.CONFIG.STRIKE_COOLDOWN * w.cdMul * reloadF;
-        }
+        // weapon cadence × Rapid Reload upgrade, applied to the firer's cooldown
+        const reloadF = 1 - 0.06 * D.upgradeLevel('reload');
+        const cd = OLW.CONFIG.STRIKE_COOLDOWN * w.cdMul * reloadF;
+        if (slot === 2) { if (this.player2StrikeCd > 0) this.player2StrikeCd = cd; }
+        else { if (this.strikeCd > 0) this.strikeCd = cd; this.wardenShotAnim = 0.42; }
         if (result && (w.mode !== 'single' || weaponLevel(w.id) > 0)) A.applyWeaponExtras(this, ax, ay);
         A.weaponImpact(this, ax, ay, !!result);   // per-weapon muzzle + impact
       }
@@ -1407,6 +1410,13 @@ if (
   function doQuit() {
     const game = A._game;
     if (!game) return;
+    // Quitting a live 1v1 is a FORFEIT — the quitter (host/defender) loses.
+    if (game.versus && game.state === 'playing') {
+      game._forcedVersusWinner = 'attacker';
+      if (OLW.Multiplayer && OLW.Multiplayer.cancelRoom) OLW.Multiplayer.cancelRoom();
+      game.gameOver();        // over screen shows "YOU LOSE"; onGameOver records it
+      return;
+    }
     A.bankRun(game);          // banked coins are kept
     game.stop();
     game.state = 'menu';
@@ -1420,7 +1430,8 @@ if (
   function quitToMenu() {
     const game = A._game;
     if (!game) return;
-    if (game.state === 'playing') game.pause();     // freeze the watch while asking
+    // No freeze while asking — there is no pause in this game, so the raid
+    // keeps coming while the player decides whether to abandon the watch.
     if (!quitModal) {
       quitModal = el('div', 'ars-confirm');
       quitModal.innerHTML =
@@ -1434,7 +1445,7 @@ if (
         </div>`;
       (document.getElementById('stage') || document.body).appendChild(quitModal);
       quitModal.querySelector('.ars-confirm-yes').onclick = () => { hideQuitModal(); doQuit(); };
-      quitModal.querySelector('.ars-confirm-no').onclick = () => { hideQuitModal(); if (A._game && A._game.state === 'paused') A._game.resume(); };
+      quitModal.querySelector('.ars-confirm-no').onclick = () => { hideQuitModal(); };
     }
     quitModal.style.display = 'grid';
   }

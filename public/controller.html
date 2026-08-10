@@ -255,6 +255,55 @@
       border: 1px solid var(--line);
     }
 
+    /* live host view fills the aim surface so P2 aims on what they see; object-fit
+       fill keeps it 1:1 with the 0..1 aim mapping the host expects */
+    .aim-live {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: fill;
+      background: #0a0d13;
+      pointer-events: none;
+      z-index: 0;
+      image-rendering: auto;
+    }
+    .aim-hint { z-index: 2; }
+    .mobile-reticle { z-index: 3; }
+    /* HD WebRTC video mirror — shown over the img fallback when connected */
+    .remote-video {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: fill;
+      background: #0a0d13;
+      display: none;
+      z-index: 1;
+      pointer-events: none;
+    }
+    .atk-live-wrap { position: relative; }
+
+    /* ABR readout — which rendition the phone settled on */
+    .stream-quality {
+      position: fixed;
+      top: 8px;
+      right: 8px;
+      z-index: 40;
+      padding: 3px 8px;
+      border-radius: 3px;
+      font: 700 11px/1.4 "Segoe UI", system-ui, sans-serif;
+      letter-spacing: .06em;
+      color: #f5c36b;
+      background: rgba(10, 13, 19, .78);
+      border: 1px solid #4a4436;
+      opacity: 0;
+      transition: opacity .25s ease;
+      pointer-events: none;
+    }
+    .stream-quality.visible { opacity: 1; }
+    .stream-quality.degraded { color: #d8cdb5; }
+
     .aim-pad::before,
     .aim-pad::after {
       content: "";
@@ -262,6 +311,7 @@
       pointer-events: none;
       opacity: 0.18;
       background: var(--sand);
+      z-index: 1;
     }
 
     .aim-pad::before {
@@ -531,24 +581,22 @@
           </div>
         </div>
 
-        <div class="remote-watch">
-  <div class="remote-watch-head">
-    <span>LIVE OUTPOST</span>
-    <small>Host view</small>
-  </div>
-
-  <div class="remote-watch-screen">
-    <img
-      id="remote-game-preview"
-      alt="Live outpost preview"
-      draggable="false"
-    />
-  </div>
-</div>
-
         <div id="aim-pad" class="aim-pad">
+          <video
+            id="remote-video"
+            class="remote-video"
+            muted
+            autoplay
+            playsinline
+          ></video>
+          <img
+            id="remote-game-preview"
+            class="aim-live"
+            alt="Live outpost view"
+            draggable="false"
+          />
           <div class="aim-hint">
-            Drag here to aim
+            Drag on the live view to aim
           </div>
 
           <div id="mobile-reticle" class="mobile-reticle"></div>
@@ -575,6 +623,10 @@
             <b id="atk-timer">--</b>
           </div>
 
+          <div class="atk-live-wrap">
+            <img id="remote-preview-atk" class="atk-live" alt="Live outpost view" draggable="false" />
+          </div>
+
           <div id="spawn-pad" class="spawn-pad">
             <div class="spawn-core">WALL</div>
             <div class="spawn-arrow" id="spawn-arrow"></div>
@@ -591,8 +643,10 @@
   </div>
 
   <style id="attacker-skin">
-    .attacker-panel { display: flex; flex-direction: column; align-items: center; gap: 14px; flex: 1; min-height: 0; }
+    .attacker-panel { display: flex; flex-direction: column; align-items: center; gap: 12px; flex: 1; min-height: 0; }
     .attacker-panel.hidden { display: none; }
+    .atk-live-wrap { width: min(80vw, 360px); aspect-ratio: 16 / 9; border: 1px solid #4a4436; border-radius: 8px; overflow: hidden; background: #0a0d13; }
+    .atk-live { width: 100%; height: 100%; object-fit: fill; display: block; }
     .attacker-hint { font-size: 13px; color: #d8cdb5; text-align: center; }
     .attacker-hint b { color: #f5c36b; }
     .spawn-pad {
@@ -633,6 +687,7 @@
   </style>
 
   <script src="/socket.io/socket.io.js"></script>
+  <script src="src/stream.js"></script>
   <script src="src/controller.js"></script>
 </body>
 </html>

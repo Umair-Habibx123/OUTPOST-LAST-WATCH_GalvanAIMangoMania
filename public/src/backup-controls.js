@@ -7,6 +7,12 @@
      • 'keyboard' — the host drives P2 with Arrow keys + Enter
      • 'off'      — no backup (P2 simply idles if the phone drops)
 
+   CO-OP NEVER GETS THE AI. A shared watch is meant to be two people; an AI
+   quietly taking over the second post plays the game for them. If Player 2
+   drops out of a co-op run their post stands empty until they come back.
+   'keyboard' still applies there, because that is the host deciding to work
+   both posts by hand rather than an aim-assist doing it for them.
+
    It engages automatically the moment the controller goes offline mid-match and
    hands control back the instant the phone reconnects. Press B to force it on
    (e.g. to take over a laggy phone). Solo play is always fully local anyway. */
@@ -23,7 +29,20 @@ OLW.BackupControls = (function () {
 
   function mode() { return (OLW.Settings && OLW.Settings.get && OLW.Settings.get('backup')) || 'auto'; }
   function coopActive(g) { return g && g.state === 'playing' && MP && MP.mode && MP.mode !== 'solo'; }
-  function shouldBackup(g) { return coopActive(g) && mode() !== 'off' && (!controllerOnline || manual); }
+
+  /* NO AI STAND-IN IN CO-OP.
+     When Player 2 leaves a shared watch their post simply goes empty — an AI
+     that keeps aiming and firing for them turns a two-player run into a
+     one-and-a-half-player run and quietly plays the game for you. The keyboard
+     option is different: that is the HOST choosing to work the second post
+     themselves, so it still engages. */
+  function aiAllowed() { return !MP || MP.mode !== 'coop'; }
+
+  function shouldBackup(g) {
+    if (!coopActive(g) || mode() === 'off') return false;
+    if (!controllerOnline || manual) return mode() === 'keyboard' || aiAllowed();
+    return false;
+  }
 
   /* ---- drive Player 2 locally ---- */
   function driveAI(g) {
@@ -58,7 +77,14 @@ OLW.BackupControls = (function () {
     const active = shouldBackup(g);
     if (active && !engaged) { engaged = true; showNote(); }
     if (!active && engaged) { engaged = false; hideNote(); }
-    if (!active) return;
+
+    if (!active) {
+      // co-op with nobody on the second post: mark it empty, drive nothing
+      if (coopActive(g) && !controllerOnline && !aiAllowed()) showEmptyNote();
+      else if (!engaged) hideNote();
+      return;
+    }
+
     if (mode() === 'keyboard') driveKeyboard(g, dt);
     else driveAI(g);
   }
@@ -112,6 +138,13 @@ OLW.BackupControls = (function () {
     note.textContent = mode() === 'keyboard'
       ? 'PLAYER 2 · LOCAL KEYBOARD BACKUP  (arrows + Enter)'
       : 'PLAYER 2 · AUTO-DEFEND  (controller offline)';
+    note.style.display = 'block';
+  }
+
+  // The post is unmanned and staying that way — say so plainly.
+  function showEmptyNote() {
+    ensureNote();
+    note.textContent = 'PLAYER 2 POST UNMANNED';
     note.style.display = 'block';
   }
   function hideNote() { if (note) note.style.display = 'none'; }

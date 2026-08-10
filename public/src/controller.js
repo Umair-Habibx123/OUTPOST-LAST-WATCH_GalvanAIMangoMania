@@ -53,6 +53,7 @@
   const defenderActions = document.querySelector('.controller-actions');
 
   let roomCode = '';
+  let roomMode = 'coop';
   let joined = false;
   let matchActive = false;
   let attackerMode = false;     // true when this room is versus (phone = attacker)
@@ -96,6 +97,7 @@
             waitingScreen.classList.add('hidden');
             gameScreen.classList.remove('hidden');
             if (!attackerMode) sendAim(true);
+            requestRtc();      // rejoined a live match — pull the mirror back up
           } else {
             waitingScreen.classList.remove('hidden');
             gameScreen.classList.add('hidden');
@@ -128,6 +130,8 @@
   const mode =
     room?.mode ||
     'coop';
+
+  roomMode = mode;
 
   attackerMode =
     mode === 'versus';
@@ -187,6 +191,10 @@
     'controller-coop',
     mode === 'coop'
   );
+
+  // co-op and versus show the mirror in different containers — if the stream
+  // is already live, move it into whichever one this mode uses.
+  if (window.OLW_MIRROR_RX && OLW_MIRROR_RX.isLive()) showVideo();
 }
 
   socket.on('match:started', (payload) => {
@@ -204,6 +212,7 @@
     gameScreen.classList.remove('hidden');
 
     if (!attackerMode) sendAim(true);
+    requestRtc();          // ask the kiosk to start the HD mirror
   });
 
   socket.on('match:stats', (stats) => {
@@ -251,45 +260,183 @@
   socket.on(
   'match:preview',
   payload => {
-    const image =
-      document.getElementById(
-        'remote-game-preview'
-      );
-
-    if (
-      image &&
-      payload?.image
-    ) {
-      image.src =
-        payload.image;
-    }
+    if (!payload || !payload.image) return;
+    // feed both live views (co-op aim-pad + versus attacker strip)
+    const a = document.getElementById('remote-game-preview');
+    const b = document.getElementById('remote-preview-atk');
+    if (a) a.src = payload.image;
+    if (b) b.src = payload.image;
   }
 );
 
-  socket.on('match:ended', () => {
+  /* ---------------- HD adaptive video mirror (receiver) ----------------
+     Pulls a live Full-HD stream of the host canvas and runs the ABR control
+     loop against it: throughput + playout-buffer occupancy decide which
+     rendition to pull next, and the host is asked for it. Falls back to the
+     webp frames if WebRTC can't connect at all. */
+
+  function activeSurface() {
+    return attackerMode ? document.querySelector('.atk-live-wrap') : document.getElementById('aim-pad');
+  }
+  function showVideo() {
+    const v = document.getElementById('remote-video');
+    const s = activeSurface();
+    if (v && s) { if (v.parentElement !== s) s.appendChild(v); v.style.display = 'block'; }
+    const i1 = document.getElementById('remote-game-preview');
+    const i2 = document.getElementById('remote-preview-atk');
+    if (i1) i1.style.visibility = 'hidden';
+    if (i2) i2.style.visibility = 'hidden';
+  }
+  function hideVideo() {
+    const v = document.getElementById('remote-video');
+    if (v) v.style.display = 'none';
+    const i1 = document.getElementById('remote-game-preview');
+    const i2 = document.getElementById('remote-preview-atk');
+    if (i1) i1.style.visibility = 'visible';
+    if (i2) i2.style.visibility = 'visible';
+  }
+  /* A small badge so the player can see the mirror is live and which rung
+     the ABR loop settled on — the "1080p60" readout, essentially. */
+  function qualityBadge() {
+    let el = document.getElementById('stream-quality');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'stream-quality';
+      el.className = 'stream-quality';
+      document.body.appendChild(el);
+    }
+    return el;
+  }
+  function showQuality(rung, why, isDown) {
+    const el = qualityBadge();
+    el.textContent = rung.label + (rung.fps >= 60 ? '60' : '');
+    el.classList.toggle('degraded', rung.h < 720);
+    el.classList.add('visible');
+    clearTimeout(el._hide);
+    el._hide = setTimeout(() => el.classList.remove('visible'), isDown ? 2600 : 1600);
+  }
+
+  const rtcReceiver = (window.OLW && OLW.Stream) ? OLW.Stream.createReceiver({
+    socket: socket,
+    getRoomCode: () => roomCode,
+    video: document.getElementById('remote-video'),
+    onLive: (up) => {
+      if (up) { showVideo(); showQuality(rtcReceiver.level(), 'connected', false); }
+      else hideVideo();
+    },
+    onLevel: (rung, why, isDown) => showQuality(rung, why, isDown)
+  }) : null;
+
+  window.OLW_MIRROR_RX = rtcReceiver;   // exposed for debugging / QA
+
+  function stopRtc() {
+    if (rtcReceiver) rtcReceiver.stop();
+    hideVideo();
+  }
+  function requestRtc() {
+    if (rtcReceiver && roomCode && window.RTCPeerConnection) rtcReceiver.request();
+  }
+
+  socket.on('rtc:offer', (p) => { if (rtcReceiver) rtcReceiver.onOffer(p); });
+  socket.on('rtc:ice', (p) => { if (rtcReceiver) rtcReceiver.onIce(p); });
+  socket.on('stream:cap', (p) => { if (rtcReceiver) rtcReceiver.onCap(p); });
+
+  /* Mirror of the kiosk's announcement: a toast plus the same spoken line, so
+     Player 2 is told what happened instead of just seeing the screen freeze. */
+  function notify(text, tone, speech) {
+    let el = document.getElementById('ctrl-announce');
+    if (!el) {
+      const css = document.createElement('style');
+      css.textContent =
+        '#ctrl-announce{position:fixed;left:50%;top:12px;transform:translateX(-50%) translateY(-8px);' +
+        'z-index:60;max-width:92vw;text-align:center;padding:10px 16px;border-radius:4px;' +
+        'background:rgba(18,13,9,.94);border:1px solid #7a5a2a;color:#f5c36b;' +
+        'font:800 13px/1.45 "Segoe UI",system-ui,sans-serif;pointer-events:none;opacity:0;' +
+        'transition:opacity .28s ease,transform .28s ease}' +
+        '#ctrl-announce.show{opacity:1;transform:translateX(-50%) translateY(0)}' +
+        '#ctrl-announce.bad{color:#e8907a;border-color:#8c4433}';
+      document.head.appendChild(css);
+      el = document.createElement('div');
+      el.id = 'ctrl-announce';
+      document.body.appendChild(el);
+    }
+    el.textContent = text;
+    el.classList.toggle('bad', tone === 'bad');
+    el.classList.add('show');
+    clearTimeout(el._t);
+    el._t = setTimeout(() => el.classList.remove('show'), 6000);
+
+    if (speech && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(speech);
+        u.rate = 0.9; u.pitch = 0.72;
+        window.speechSynthesis.speak(u);
+      } catch (e) { /* the toast already carried the message */ }
+    }
+  }
+
+  socket.on('match:ended', (payload) => {
     matchActive = false;
     fireButton.disabled = true;
     volleyButton.disabled = true;
     connectionPill.textContent = 'Watch ended';
+
+    // Co-op is a shared, endless watch — it only ends when the wall falls, and
+    // when it does BOTH wardens lost it.
+    if (roomMode === 'coop') {
+      const r = payload && payload.result;
+      notify(
+        'THE OUTPOST HAS FALLEN — you both lost the watch.' +
+          (r ? ` Score ${r.score} · ${r.kills} kills.` : ''),
+        'bad',
+        'The outpost has fallen. You both lost the watch.'
+      );
+    }
+
+    stopRtc();
     clearRoom();
   });
 
-  socket.on('room:cancelled', () => {
+  socket.on('room:cancelled', (payload) => {
     joined = false;
     matchActive = false;
-    clearRoom();
+    stopRtc();
+    clearRoom();   // wipes the saved room binding so we don't rejoin a dead room
 
     waitingScreen.classList.add('hidden');
     gameScreen.classList.add('hidden');
     joinScreen.classList.remove('hidden');
 
-    joinError.textContent =
-      'The host cancelled this room.';
+    const ended = payload && payload.reason === 'opponent-left';
+    const mode = (payload && payload.mode) || roomMode;
+
+    // Co-op has no forfeit win: Player 1 IS the outpost, so if they drop out
+    // the watch is lost for both of us.
+    if (mode === 'coop' && ended) {
+      joinError.textContent =
+        'Player 1 left the watch — the outpost is lost. You both lost this run.';
+      notify(
+        'PLAYER 1 LEFT THE WATCH — the outpost is lost.',
+        'bad',
+        'Player one left the watch. The outpost is lost.'
+      );
+      return;
+    }
+
+    // versus: whoever is still connected wins by forfeit
+    const won = payload && payload.winnerRole === 'controller';
+    joinError.textContent = won
+      ? '🏆 You win — the opponent left the match.'
+      : ended
+        ? 'The match ended (a player left).'
+        : 'The host closed this room.';
   });
 
   socket.on('room:player-left', (payload) => {
     if (payload.role === 'host') {
       matchActive = false;
+      stopRtc();
       connectionPill.textContent = 'Host disconnected';
       connectionPill.classList.remove('online');
     }
@@ -410,51 +557,67 @@
     });
   }
 
+  // Fire the current aim at the host. Shared by touch (Fire button), mouse
+  // (click on the live view), keyboard (Space) and gamepad — so ANY controller
+  // works, matching the desktop game's aim + fire feel.
+  function sendStrike() {
+    if (!matchActive || !roomCode || attackerMode) return;
+    shotCounter += 1;
+    socket.emit(
+      'controller:strike',
+      { roomCode, x: aim.x, y: aim.y, clientShotId: `${socket.id || 'phone'}-${shotCounter}` },
+      (response) => { if (response && response.ok === false) console.warn(response.message); }
+    );
+    if (navigator.vibrate) navigator.vibrate(18);
+  }
+
   aimPad.addEventListener('pointerdown', (event) => {
     event.preventDefault();
-
     aimPad.setPointerCapture?.(event.pointerId);
     positionAim(event.clientX, event.clientY);
+    // a mouse click on the view also fires (desktop controller = aim + click)
+    if (event.pointerType === 'mouse') sendStrike();
   });
 
   aimPad.addEventListener('pointermove', (event) => {
-    if (event.buttons === 0 && event.pointerType === 'mouse') {
-      return;
-    }
-
+    // aim on touch-drag OR mouse move (a desktop controller aims by moving the mouse)
     event.preventDefault();
     positionAim(event.clientX, event.clientY);
   });
 
   fireButton.addEventListener('pointerdown', (event) => {
     event.preventDefault();
+    sendStrike();
+  });
 
-    if (!matchActive || !roomCode) {
-      return;
-    }
-
-    shotCounter += 1;
-
-    socket.emit(
-      'controller:strike',
-      {
-        roomCode,
-        x: aim.x,
-        y: aim.y,
-        clientShotId:
-          `${socket.id || 'phone'}-${shotCounter}`
-      },
-      (response) => {
-        if (response && response.ok === false) {
-          console.warn(response.message);
-        }
-      }
-    );
-
-    if (navigator.vibrate) {
-      navigator.vibrate(18);
+  // keyboard: Space fires (device controls, e.g. a laptop as the controller)
+  window.addEventListener('keydown', (event) => {
+    if (event.code === 'Space' && matchActive && !attackerMode) {
+      event.preventDefault();
+      sendStrike();
     }
   });
+
+  // basic gamepad (e.g. PlayStation pad): left stick aims, X / R1 / R2 fires
+  function gamepadLoop() {
+    requestAnimationFrame(gamepadLoop);
+    if (!matchActive || attackerMode) return;
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    let gp = null;
+    for (const p of pads) { if (p) { gp = p; break; } }
+    if (!gp) return;
+    const ax = gp.axes[0] || 0, ay = gp.axes[1] || 0;
+    if (Math.hypot(ax, ay) > 0.14) {                 // stick deadzone
+      aim.x = Math.max(0, Math.min(1, 0.5 + ax * 0.55));
+      aim.y = Math.max(0, Math.min(1, 0.5 + ay * 0.55));
+      reticle.style.left = (aim.x * 100) + '%';
+      reticle.style.top = (aim.y * 100) + '%';
+      sendAim(false);
+    }
+    const b = gp.buttons;
+    if ((b[0] && b[0].pressed) || (b[5] && b[5].pressed) || (b[7] && b[7].pressed)) sendStrike();
+  }
+  requestAnimationFrame(gamepadLoop);
 
   volleyButton.addEventListener('click', () => {
     if (

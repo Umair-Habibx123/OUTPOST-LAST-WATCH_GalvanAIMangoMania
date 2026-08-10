@@ -52,6 +52,7 @@ export function defaults() {
     stash: 0, unlocked: ['sidearm'], ammo: {}, items: {}, upgrades: {}, weaponLevels: {},
     xp: 0, level: 1, settings: {},
     loadout: 'sidearm', map: 'frontier', bestScore: 0, name: '', company: '',
+    versusWins: 0, versusLosses: 0,
   };
 }
 

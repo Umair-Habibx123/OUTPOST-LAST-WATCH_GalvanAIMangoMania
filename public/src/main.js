@@ -14,6 +14,7 @@
 let roomCreationInProgress = false;
 let lastMultiplayerStatsSent = 0;
 let selectedRoomMode = 'coop';
+let selectedDefendTime = 60;    // versus: seconds the defender must survive
 let soloPhoneStarted = false;   // guard so auto-start fires once per solo-phone room
 
 let lastPreviewSent =
@@ -25,10 +26,10 @@ const previewCanvas =
   );
 
 previewCanvas.width =
-  320;
+  640;
 
 previewCanvas.height =
-  180;
+  360;
 
 const previewCtx =
   previewCanvas.getContext(
@@ -104,6 +105,23 @@ const previewCtx =
     setTimeout(go, 6000);   // safety: never hard-block the kiosk
   }
 
+  /* ---------- render resolution ----------
+     The mirror can only be Full-HD if the canvas actually holds Full-HD
+     pixels, so supersample the 960x540 logical space to 1920x1080 on any
+     machine that can afford it. Phones and weak CPUs stay at 1x; the stream
+     controller drops this again if the encoder reports CPU pressure. */
+  OLW.CONFIG.RENDER_SCALE = (function () {
+    try {
+      const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+      const cores = navigator.hardwareConcurrency || 2;
+      // screen.* reads 0 in some embedded webviews — fall back to the window.
+      const px = Math.max(screen.width || 0, screen.height || 0, window.innerWidth || 0);
+      const wide = px === 0 || px >= 1024;
+      if (coarse || cores < 4 || !wide) return 1;
+      return cores >= 8 ? 2 : 1.5;
+    } catch (e) { return 1; }
+  })();
+
   /* ---------- game ---------- */
   const game = new OLW.Game(canvas, {
     onStats: updateHud,
@@ -145,9 +163,55 @@ OLW.Multiplayer.on('matchStarted', (payload) => {
   // versus: this kiosk is the DEFENDER; the phone attacker spawns raiders
   const mode = (payload && payload.room && payload.room.mode) || OLW.Multiplayer.mode;
   game._versusPending = (mode === 'versus');
+  if (mode === 'versus') game._versusDurationPending = selectedDefendTime;
   enterGameUI();
   game.start();
 });
+
+// keep a resumable ?room= in the host's URL so a refresh / reopen can rejoin
+function setRoomUrl(code) { try { history.replaceState(null, '', '/?room=' + encodeURIComponent(code)); } catch (e) {} }
+function clearRoomUrl() { try { history.replaceState(null, '', '/'); } catch (e) {} }
+
+// Opponent left / room closed. In a live versus match the player still here wins;
+// otherwise just bounce back to the outpost. Always clear the resume + URL so the
+// device is never pulled back into a dead room.
+OLW.Multiplayer.on('roomCancelled', (info) => {
+  clearRoomUrl();
+  const playing = game.state === 'playing';
+  if (playing && info && info.mode === 'versus') {
+    // host is the defender and is still connected → host wins by forfeit
+    // (onGameOver records the W/L from res.versusWinner, so don't double-count)
+    game._forcedVersusWinner = 'defender';
+    game.gameOver();
+  } else if (!playing) {
+    resetRoomScreen();
+    showScreen('title');
+  }
+  soloPhoneStarted = false;
+});
+
+// Reconnected into a room. If it's a LIVE match but our game isn't running (the
+// page was reloaded → state is gone), the host can't continue → forfeit cleanly.
+OLW.Multiplayer.on('resumed', (info) => {
+  const room = info && info.room;
+  if (!room) return;
+  if (room.status === 'active' && game.state !== 'playing') {
+    // can't restore a live match after a reload → leave (host forfeits)
+    OLW.Multiplayer.cancelRoom();
+    clearRoomUrl();
+    resetRoomScreen();
+    showScreen('title');
+  } else if (room.status !== 'active') {
+    // back in the lobby → show it
+    selectedRoomMode = room.mode || selectedRoomMode;
+    showScreen('qr');
+  }
+});
+
+function recordVersusResult(outcome) {
+  try { return (OLW.Device && OLW.Device.recordVersus) ? OLW.Device.recordVersus(outcome) : null; }
+  catch (e) { return null; }
+}
 
 // versus: the attacker's phone requested a raider from a lane
 OLW.Multiplayer.on('player2Spawn', (payload) => {
@@ -173,8 +237,52 @@ OLW.Multiplayer.on('player2Volley', () => {
   else game.usePlayer2Volley();
 });
 
+/* ---------------- in-game announcement (toast + spoken warden line) ----------
+   Used for the co-op partner events, which happen mid-fight when the player is
+   watching the wall, not the lobby card. */
+function announce(text, speech, tone) {
+  let el = document.getElementById('olw-announce');
+  if (!el) {
+    const css = document.createElement('style');
+    css.textContent =
+      '#olw-announce{position:absolute;left:50%;top:84px;transform:translateX(-50%) translateY(-8px);' +
+      'z-index:30;max-width:min(560px,88vw);text-align:center;padding:9px 18px;border-radius:4px;' +
+      'background:rgba(18,13,9,.92);border:1px solid #7a5a2a;color:#f5c36b;font:800 13px/1.45 "Segoe UI",system-ui,sans-serif;' +
+      'letter-spacing:.3px;pointer-events:none;opacity:0;transition:opacity .28s ease,transform .28s ease}' +
+      '#olw-announce.show{opacity:1;transform:translateX(-50%) translateY(0)}' +
+      '#olw-announce.bad{color:#e8907a;border-color:#8c4433}';
+    document.head.appendChild(css);
+    el = document.createElement('div');
+    el.id = 'olw-announce';
+    (document.getElementById('stage') || document.body).appendChild(el);
+  }
+  el.textContent = text;
+  el.classList.toggle('bad', tone === 'bad');
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 4200);
+
+  if (speech) {
+    OLW.Voice?.speak?.(speech, { interrupt: true, rate: 0.9, pitch: 0.72 });
+  }
+}
+
 OLW.Multiplayer.on('playerLeft', (payload) => {
   if (payload.role !== 'controller') {
+    return;
+  }
+
+  // Mid-match in co-op the wall is still standing: Player 1 fights on alone and
+  // the backup controls pick up P2. Say so out loud — the player is looking at
+  // the battlefield, not the lobby card.
+  if (game.state === 'playing' && OLW.Multiplayer.mode === 'coop') {
+    announce._p2Away = true;
+    game.setPlayer2Away(true);      // empty the post — nothing takes it over
+    announce(
+      'PLAYER 2 IS DOWN — their post is unmanned. You hold the wall alone.',
+      'Player two is down. You hold the wall alone.',
+      'bad'
+    );
     return;
   }
 
@@ -191,7 +299,69 @@ OLW.Multiplayer.on('playerLeft', (payload) => {
   $('room-message').textContent =
     'Player 2 lost connection.';
 });
+
+// Lost the phone but not yet timed out — empty the post straight away rather
+// than leaving a reticle frozen mid-battlefield.
+OLW.Multiplayer.on('peerAway', (p) => {
+  if (p && p.role === 'controller' && OLW.Multiplayer.mode === 'coop') {
+    game.setPlayer2Away(true);
+  }
+});
+
+// Partner is back on the wall.
+OLW.Multiplayer.on('roomState', (room) => {
+  const back = room && room.controller && room.controller.connected;
+  if (!back || game.state !== 'playing' || OLW.Multiplayer.mode !== 'coop') return;
+  game.setPlayer2Away(false);
+  if (!announce._p2Away) return;
+  announce._p2Away = false;
+  announce('PLAYER 2 IS BACK ON THE WALL', 'Player two is back.', 'ok');
+});
   window.OLW_GAME = game; // exposed for debugging / QA
+
+  /* ---------------- HD adaptive screen mirror (host / sender) ----------------
+     Streams the live canvas to the phone over WebRTC. The phone runs the ABR
+     control loop and asks for a rendition; we honour it, capped by what our
+     own uplink measurement says we can actually push. The old webp-frame path
+     stays as the bootstrap picture and the fallback if WebRTC can't connect. */
+  const hostStream = (OLW.Stream && OLW.Stream.createHost({
+    canvas: canvas,
+    socket: OLW.Multiplayer.socket,
+    getRoomCode: () => OLW.Multiplayer.roomCode,
+    onLevel: (rung, why) => {
+      if (window.OLW_STREAM_DEBUG) console.log('[mirror] ->', rung.label, why);
+    },
+    onCpuPressure: () => {
+      // encoder is CPU-bound: shed supersampling before gameplay stutters
+      game.setRenderScale((game.renderScale || 1) - 0.5);
+    }
+  })) || null;
+
+  window.OLW_MIRROR = hostStream;   // exposed for debugging / QA
+
+  function startMirror() {
+    if (!hostStream) return;
+    if (OLW.Multiplayer.mode === 'solo' || !OLW.Multiplayer.roomCode) return;
+    hostStream.start();
+  }
+  function stopMirror() { if (hostStream) hostStream.stop(); }
+
+  if (hostStream && OLW.Multiplayer.socket) {
+    const sock = OLW.Multiplayer.socket;
+    sock.on('rtc:request', startMirror);
+    sock.on('rtc:answer', (p) => hostStream.onAnswer(p));
+    sock.on('rtc:ice', (p) => hostStream.onIce(p));
+    sock.on('stream:quality', (p) => hostStream.onQualityRequest(p));
+    sock.on('rtc:down', () => { /* phone dropped the view; keep sending, it re-asks */ });
+  }
+
+  OLW.Multiplayer.on('matchStarted', startMirror);
+  // host refreshed mid-match: the phone is still there, so put the mirror back
+  OLW.Multiplayer.on('resumed', (p) => {
+    if (p && p.room && p.room.status === 'active') startMirror();
+  });
+  OLW.Multiplayer.on('roomCancelled', stopMirror);
+  OLW.Multiplayer.on('playerLeft', (p) => { if (p && p.role === 'controller') stopMirror(); });
 
   function updateHud(s) {
     const pct = U.clamp(s.integrity / s.integrityMax, 0, 1);
@@ -242,35 +412,24 @@ if (
     player2Charge: s.player2Charge
   });
 }
+/* Legacy webp-frame mirror. This is the bootstrap picture (shown until the
+   WebRTC stream connects) and the fallback if it never does. Once the HD
+   stream is live we stop entirely — toDataURL every 70ms is a main-thread
+   JPEG-style encode that was costing the game more than it was worth. */
+const mirrorLive = hostStream && hostStream.isLive();
 if (
-  OLW.Multiplayer.mode !==
-    'solo' &&
-  now - lastPreviewSent >=
-    350
+  OLW.Multiplayer.mode !== 'solo' &&
+  !mirrorLive &&
+  now - lastPreviewSent >= 70
 ) {
-  lastPreviewSent =
-    now;
+  lastPreviewSent = now;
 
   try {
-    previewCtx.drawImage(
-      canvas,
-      0,
-      0,
-      320,
-      180
-    );
+    previewCtx.drawImage(canvas, 0, 0, 640, 360);
 
-    const preview =
-      previewCanvas.toDataURL(
-        'image/webp',
-        0.38
-      );
+    const preview = previewCanvas.toDataURL('image/webp', 0.6);
 
-    OLW.Multiplayer
-      .sendMatchPreview?.(
-        preview
-      );
-
+    OLW.Multiplayer.sendMatchPreview?.(preview);
   } catch (error) {
     /*
       Preview is non-essential.
@@ -345,6 +504,7 @@ async function recordCompletedWatch(result) {
     lastResult = res;
     res._saved = false;
     res._skipped = false;
+    stopMirror();   // the watch is over — stop encoding for the phone
     $('res-time').textContent = res.time + 's';
     $('res-waves').textContent = res.waves;
     $('res-kills').textContent = res.kills;
@@ -364,12 +524,15 @@ recordCompletedWatch(res);
 
     const overTitle = document.querySelector('#screen-over .panel-title');
     if (res.versus) {
-      // Versus outcome (this kiosk is the defender): announce the winner up top.
+      // Versus outcome (this kiosk is the defender): announce the winner + record W/L.
       const defenderWon = res.versusWinner === 'defender';
       if (overTitle) overTitle.textContent = defenderWon ? 'Outpost held!' : 'The wall has fallen';
-      $('res-rank').textContent = defenderWon
-        ? `DEFENDER WINS — you survived all ${res.survived != null ? Math.round(res.survived) : ''}s.`
-        : `ATTACKER WINS — the wall fell in ${Math.round(res.time)}s.`;
+      const forfeit = res.versusForfeit ? ' (by forfeit)' : '';
+      const rec = recordVersusResult(defenderWon ? 'win' : 'loss') || {};
+      const tally = (rec.versusWins != null) ? ` · Your record: ${rec.versusWins}W ${rec.versusLosses}L` : '';
+      $('res-rank').textContent = (defenderWon
+        ? `YOU WIN${forfeit} — defended ${res.survived != null ? Math.round(res.survived) : Math.round(res.time)}s.`
+        : `YOU LOSE${forfeit} — the wall fell in ${Math.round(res.time)}s.`) + tally;
     } else {
       if (overTitle) overTitle.textContent = 'The wall has fallen';
       // Placeholder now; the rank is fetched in the background so the game-over
@@ -495,15 +658,11 @@ if (voiceGuide) {
         e.stopImmediatePropagation();
         return;
       }
-      if (game.state === 'playing') game.pause();
-      else if (game.state === 'paused') game.resume();
+      // Nothing else to do: there is no pause. A watch runs to a win or a loss.
       return;
     }
 
-    if (e.key === 'p' || e.key === 'P') {
-      if (game.state === 'playing') game.pause();
-      else if (game.state === 'paused') game.resume();
-    } else if (e.code === 'Space' && game.state === 'playing') {
+    if (e.code === 'Space' && game.state === 'playing') {
       e.preventDefault();
       game.strike();
     } else if ((e.key === 'q' || e.key === 'Q') && game.state === 'playing') {
@@ -555,8 +714,21 @@ document
 
       selectedRoomMode =
         button.dataset.mode || 'coop';
+
+      // show the defend-time picker only for versus
+      const tr = $('versus-time-row');
+      if (tr) tr.classList.toggle('hidden', selectedRoomMode !== 'versus');
     });
   });
+
+// defend-time picker (versus)
+document.querySelectorAll('.time-opt').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.time-opt').forEach((b) => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    selectedDefendTime = parseInt(btn.dataset.time, 10) || 60;
+  });
+});
  /* ---------- menu buttons ---------- */
 
 $('btn-play').addEventListener('click', () => {
@@ -664,13 +836,9 @@ document
     });
   });
 
-$('pause-btn').addEventListener('click', () => {
-  if (game.state === 'playing') {
-    game.pause();
-  } else if (game.state === 'paused') {
-    game.resume();
-  }
-});
+// The pause button is gone — a watch cannot be suspended. Hidden rather than
+// deleted from the markup so the HUD corner layout is untouched.
+(() => { const b = $('pause-btn'); if (b) b.remove(); })();
 
 $('volley-btn').addEventListener('click', () => {
   game.useVolley();
@@ -701,7 +869,9 @@ $('btn-cancel-room').addEventListener(
 );
 
 $('btn-room-back').addEventListener('click', () => {
-  showScreen('title');
+  // leaving the lobby cancels the room + clears the saved resume so the device
+  // is never pulled back into a stale room later
+  cancelSharedRoom();
 });
 
 /* ---------- game-over buttons ---------- */
@@ -1031,6 +1201,7 @@ async function createSharedRoom() {
     }
 
     currentJoinUrl = response.joinUrl;
+    setRoomUrl(response.room.code);   // host resume path
     $('room-screen-title').textContent =
   selectedRoomMode === 'versus'
     ? 'Rival Watch'
@@ -1084,13 +1255,15 @@ function renderRoomQr(joinUrl) {
     return;
   }
 
+  // High contrast (pure black on white) + high error correction = reliably
+  // scannable on phones, even in booth lighting.
   new QRCode(box, {
     text: joinUrl,
-    width: 190,
-    height: 190,
-    colorDark: '#15110c',
-    colorLight: '#f1dfbd',
-    correctLevel: QRCode.CorrectLevel.M
+    width: 200,
+    height: 200,
+    colorDark: '#000000',
+    colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.H
   });
 }
 
@@ -1119,6 +1292,7 @@ async function startSharedRoom() {
 
 async function cancelSharedRoom() {
   await OLW.Multiplayer.cancelRoom();
+  clearRoomUrl();
   resetRoomScreen();
   showScreen('title');
 }

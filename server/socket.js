@@ -326,6 +326,25 @@ export function configureSockets(io) {
       });
     });
 
+    // WebRTC signalling relay for the HD host→controller video mirror. The server
+    // is a dumb relay: it just forwards each message to the OTHER peer in the room
+    // (offer/answer/ice + up/down/request), never inspecting the media.
+    // 'stream:quality' is the receiver's ABR verdict travelling back to the
+    // sender (which rendition to switch to) — same dumb-relay treatment.
+    ['rtc:request', 'rtc:offer', 'rtc:answer', 'rtc:ice', 'rtc:up', 'rtc:down',
+     'stream:quality', 'stream:cap'].forEach((ev) => {
+      socket.on(ev, (payload) => {
+        const code = String((payload && payload.roomCode) || socket.data.roomCode || '')
+          .trim().toUpperCase();
+        if (!code) return;
+        const room = getInternalRoom(code);
+        if (!room) return;
+        // only members of the room may signal
+        if (room.hostSocketId !== socket.id && room.controllerSocketId !== socket.id) return;
+        socket.to(code).emit(ev, payload || {});
+      });
+    });
+
     socket.on('controller:volley', ({ roomCode }) => {
       const normalized = String(roomCode || '')
         .trim()
@@ -399,7 +418,7 @@ export function configureSockets(io) {
     if (
       typeof image !== 'string' ||
       image.length >
-        100000
+        260000
     ) {
       return;
     }
@@ -446,10 +465,23 @@ export function configureSockets(io) {
           // only nulls the seat if the room still points at THIS dead socket
           const result = await handleDisconnect(socket.id);
           if (result) {
-            io.to(result.roomCode).emit('room:player-left', {
-              role: result.disconnectedRole,
-              room: result.room
-            });
+            if (result.closed) {
+              // match/room ended → tell everyone (with the winner, if any) and
+              // detach so nobody is stuck resuming a dead room
+              io.to(result.roomCode).emit('room:cancelled', {
+                reason: 'opponent-left',
+                winnerRole: result.winnerRole || null,
+                mode: result.mode || null
+              });
+              io.in(result.roomCode).socketsLeave(result.roomCode);
+            } else {
+              io.to(result.roomCode).emit('room:player-left', {
+                role: result.disconnectedRole,
+                room: result.room,
+                // co-op: the match is still running without them
+                matchLive: !!result.matchLive
+              });
+            }
           }
         } catch (error) {
           console.error('Disconnect cleanup failed', error);

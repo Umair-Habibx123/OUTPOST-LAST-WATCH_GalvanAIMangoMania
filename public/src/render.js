@@ -46,29 +46,81 @@ window.OLW = window.OLW || {};
     return ((Math.round(angle / (Math.PI / 4)) % 8) + 8) % 8;
   }
 
-  function drawWarden(ctx, time, actionState) {
-    const aimX = actionState?.aimX ?? CX + 100;
-    const aimY = actionState?.aimY ?? CY;
-    const angle = Math.atan2(aimY - CY, aimX - CX);
+  /* One warden, drawn as a self-contained unit.
+
+     `w` carries everything that makes this warden its own character: where it
+     stands, where IT is aiming and whether IT is mid-shot. Both wardens run
+     through here with their own state, so their facing rows and firing frames
+     advance completely independently — P2 can be shooting north-west while P1
+     idles facing east. Nothing here reads the fort centre any more, because
+     the two of them no longer stand on it. */
+  function drawWarden(ctx, time, w) {
+    const x = w.x, y = w.y;
+    const aimX = w.aimX ?? (x + 100);
+    const aimY = w.aimY ?? y;
+    const angle = Math.atan2(aimY - y, aimX - x);
+    const slot = w.slot || 1;
+
+    // An unmanned post: the figure stays (they may reconnect) but reads as
+    // inactive, so nobody mistakes it for a warden still covering that arc.
+    if (w.away) {
+      ctx.save();
+      ctx.globalAlpha = 0.34;
+    }
+
     if (OLW.Assets?.ready?.('wardenDirectional')) {
       const img = OLW.Assets.images.wardenDirectional;
       const cols = 6, rows = 8;
       const cw = img.naturalWidth / cols, ch = img.naturalHeight / rows;
       const row = atlasDirectionRow(angle);
-      const shooting = Boolean(actionState?.p1Shooting);
-      const remaining = U.clamp(actionState?.p1ShotAnim || 0, 0, .42);
+      const shooting = Boolean(w.shooting);
+      const remaining = U.clamp(w.shotAnim || 0, 0, .42);
       const frame = shooting ? Math.min(5, Math.floor(U.clamp(1 - remaining / .42, 0, .999) * 6)) : 0;
-      const h = 126, w = h * (cw / ch);
-      ctx.save(); ctx.translate(CX, CY + 5);
+      // Sized against the map art: a warden should read as a person beside the
+      // watchtower, not tower over it. Re-check this if the maps are replaced.
+      const h = w.height || 98, ww = h * (cw / ch);
+      ctx.save(); ctx.translate(x, y);
       ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
-      ctx.shadowColor = shooting ? 'rgba(255,210,132,.74)' : 'rgba(0,0,0,.64)'; ctx.shadowBlur = shooting ? 14 : 7;
-      ctx.drawImage(img, frame*cw, row*ch, cw, ch, -w/2, -h*.73, w, h);
-      ctx.restore(); return true;
+      // P2 reads with the same cool blue as their reticle and bolts
+      ctx.shadowColor = shooting
+        ? (slot === 2 ? 'rgba(142,212,240,.78)' : 'rgba(255,210,132,.74)')
+        : 'rgba(0,0,0,.64)';
+      ctx.shadowBlur = shooting ? 14 : 7;
+      ctx.drawImage(img, frame * cw, row * ch, cw, ch, -ww / 2, -h * .73, ww, h);
+      ctx.restore();
+      drawWardenTag(ctx, x, y, slot, w.away);
+      if (w.away) ctx.restore();
+      return true;
     }
-    if (!OLW.Assets?.ready?.('warden')) return false;
-    const img = OLW.Assets.images.warden, h = 122, w = h * (img.naturalWidth / img.naturalHeight);
-    ctx.save(); ctx.translate(CX, CY + 5); if (aimX < CX) ctx.scale(-1, 1);
-    ctx.drawImage(img, -w/2, -h*.72, w, h); ctx.restore(); return true;
+
+    if (!OLW.Assets?.ready?.('warden')) { if (w.away) ctx.restore(); return false; }
+    const img = OLW.Assets.images.warden, h = w.height || 96;
+    const ww = h * (img.naturalWidth / img.naturalHeight);
+    ctx.save(); ctx.translate(x, y); if (aimX < x) ctx.scale(-1, 1);
+    ctx.drawImage(img, -ww / 2, -h * .72, ww, h); ctx.restore();
+    drawWardenTag(ctx, x, y, slot, w.away);
+    if (w.away) ctx.restore();
+    return true;
+  }
+
+  /* A small footing marker under each warden. With two of them on the wall it
+     is otherwise easy to lose track of which one you are driving. */
+  function drawWardenTag(ctx, x, y, slot, away) {
+    const c = away ? COL.parchmentDim : (slot === 2 ? '#8ed4f0' : COL.torchCore);
+    ctx.save();
+    ctx.translate(x, y + 7);
+    ctx.globalAlpha = .55;
+    ctx.strokeStyle = c;
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 16, 6, 0, 0, U.TAU);
+    ctx.stroke();
+    ctx.globalAlpha = .95;
+    ctx.fillStyle = c;
+    ctx.font = '800 9px "Segoe UI", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(slot === 2 ? 'P2' : 'P1', 0, 15);
+    ctx.restore();
   }
 
   const Render = {
@@ -119,7 +171,9 @@ window.OLW = window.OLW || {};
       ctx.setLineDash([]);
       ctx.restore();
 
-      drawWarden(ctx, time, actionState);
+      // Draw the wardens back-to-front so the nearer one overlaps correctly.
+      const crew = (actionState && actionState.wardens) || [];
+      crew.slice().sort((a, b) => a.y - b.y).forEach((w) => drawWarden(ctx, time, w));
     },
 
     threats(ctx, raiders, time) {

@@ -267,6 +267,17 @@
                     <option value="frost">Frostwatch Ridge</option>
                   </select>
 
+                  <!-- versus only: how long the defender must survive -->
+                  <div id="versus-time-row" class="hidden">
+                    <label class="field-label">Defend time (attacker vs defender)</label>
+                    <div class="mode-picker time-picker">
+                      <button type="button" class="time-opt" data-time="45">45s</button>
+                      <button type="button" class="time-opt selected" data-time="60">60s</button>
+                      <button type="button" class="time-opt" data-time="90">90s</button>
+                      <button type="button" class="time-opt" data-time="120">2 min</button>
+                    </div>
+                  </div>
+
                   <button
                     id="btn-create-room"
                     class="primary-btn room-create-btn"
@@ -574,6 +585,7 @@
     <script src="src/device.js"></script>
     <script src="src/leaderboard.js"></script>
     <script src="src/multiplayer.js"></script>
+    <script src="src/stream.js"></script>
     <script src="src/entities.js"></script>
     <script src="src/waves.js"></script>
     <script src="src/render.js"></script>

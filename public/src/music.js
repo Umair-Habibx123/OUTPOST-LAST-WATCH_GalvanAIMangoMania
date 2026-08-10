@@ -107,6 +107,8 @@ OLW.Music = (function () {
       a.play().catch(() => {});
     },
 
+    isMuted() { return muted; },
+
     setMuted(m) {
       muted = !!m;
       if (muted) { for (const a of Object.values(cache)) { try { a.pause(); } catch (e) {} } }
@@ -174,6 +176,17 @@ OLW.Music = (function () {
     return true;
   }
   if (!wireMP()) { const t = setInterval(() => { if (wireMP()) clearInterval(t); }, 300); }
+
+  /* Honour the saved sound setting BEFORE the first loop is armed. settings.js
+     loads earlier than this file, so its boot-time apply() ran when OLW.Music
+     did not exist yet and the mute never reached us — which is why sound-off
+     devices still got a burst of music on a hard refresh. Settings are read
+     from the local mirror, so this is available immediately. */
+  try {
+    if (OLW.Settings && typeof OLW.Settings.get === 'function') {
+      muted = !OLW.Settings.get('sound');
+    }
+  } catch (e) { /* defaults to unmuted */ }
 
   // start the title mood (will actually sound once the first gesture unlocks it)
   M.title();

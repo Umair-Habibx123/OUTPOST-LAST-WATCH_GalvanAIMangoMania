@@ -11,6 +11,18 @@ window.OLW = window.OLW || {};
   const CX = C.WIDTH / 2,
     CY = C.HEIGHT / 2;
 
+  /* The two wardens stand apart on the fort platform rather than sharing the
+     centre tile, so each one is a distinct, readable figure with its own
+     facing and firing animation. Positions are in logical 960x540 space.
+
+     They sit in the FRONT half of the courtyard, flanking the campfire, because
+     the map art puts the watchtower in the back half — standing them dead centre
+     would bury them in the tower. Keep them clear of it if the art changes. */
+  const WARDEN_POS = {
+    1: { x: CX - 52, y: CY + 60 },
+    2: { x: CX + 52, y: CY + 60 }
+  };
+
   class Game {
     constructor(canvas, hooks) {
       this.canvas = canvas;
@@ -33,10 +45,25 @@ window.OLW = window.OLW || {};
     }
 
     resize() {
-      // Keep internal resolution fixed; CSS handles visual scaling.
+      // Logical coordinates stay 960x540 forever — every entity, hit test and
+      // aim mapping is written against that. RENDER_SCALE only enlarges the
+      // backing store (2 => a true 1920x1080 buffer) so the shared-screen
+      // mirror has real Full-HD pixels to send instead of an upscale.
       const cv = this.canvas;
-      cv.width = C.WIDTH;
-      cv.height = C.HEIGHT;
+      const s = this.renderScale || OLW.CONFIG.RENDER_SCALE || 1;
+      this.renderScale = s;
+      cv.width = Math.round(C.WIDTH * s);
+      cv.height = Math.round(C.HEIGHT * s);
+    }
+
+    // Called by the stream controller when the encoder reports CPU pressure:
+    // shed supersampling before the game itself starts stuttering.
+    setRenderScale(s) {
+      s = Math.max(1, Math.min(2, s));
+      if (Math.abs(s - (this.renderScale || 1)) < 0.01) return;
+      this.renderScale = s;
+      OLW.CONFIG.RENDER_SCALE = s;
+      this.resize();
     }
 
     /* ---- lifecycle ---- */
@@ -57,6 +84,7 @@ window.OLW = window.OLW || {};
       // Visual firing animation is intentionally longer than the gameplay cooldown.
       // This keeps the warden readable instead of flashing a single still frame.
       this.wardenShotAnim = 0;
+      this.warden2ShotAnim = 0;
 
       this.combo = 0;
 
@@ -75,6 +103,9 @@ this._voiceCriticalWall = false;
 
 // Prevent repeated game-over announcement.
 this._voiceGameOver = false;
+      // Player 2 has dropped out: nobody works that post, so their reticle must
+      // not stay frozen on the battlefield pretending they are still aiming.
+      this.player2Away = false;
       this.player2Aim = {
   x: CX,
   y: CY + 120,
@@ -89,10 +120,13 @@ this._voiceGameOver = false;
       // defender wins; wall hits 0 → attacker wins.
       this.versus = !!this._versusPending;
       this._versusPending = false;
-      this.versusDuration = C.VERSUS_DURATION || 90;
+      // per-match defend time (chosen in the versus setup), clamped realistic
+      this.versusDuration = U.clamp(this._versusDurationPending || C.VERSUS_DURATION || 90, 30, 180);
+      this._versusDurationPending = 0;
       this.versusTimeLeft = this.versusDuration;
       this.attackerCooldown = 0;
       this.attackerSpawns = 0;
+      this._forcedVersusWinner = null;
 
 this.player2Kills = 0;
 this.player2Shots = 0;
@@ -123,10 +157,12 @@ this.player2VolleyCharge = 0;
       this._raf = null;
     }
 
-    pause() {
-      if (this.state === "playing") this.state = "paused";
-    }
+    /* There is no pause in this game — a watch runs until it is won or lost.
+       These remain as no-ops because menus/modals elsewhere still call them,
+       and because a pause would be a free timeout in any two-player match. */
+    pause() { /* intentionally does nothing */ }
     resume() {
+      // recover cleanly from any state saved by an older build
       if (this.state === "paused") {
         this.state = "playing";
         this.last = performance.now();
@@ -135,6 +171,19 @@ this.player2VolleyCharge = 0;
 
     get score() {
       return Math.floor(this.time * C.SCORE_PER_SECOND) + this.bonusScore;
+    }
+
+    /* A second warden stands on the wall only in co-op. In versus the phone is
+       the attacker (off-map), and in solo-phone the phone drives the ONE main
+       warden — neither should conjure a second body. */
+    p2Present() {
+      return !!(OLW.Multiplayer && OLW.Multiplayer.mode === 'coop');
+    }
+
+    wardenPos(slot) {
+      if (slot === 2) return WARDEN_POS[2];
+      // alone → hold the middle of the front courtyard; sharing → shift left for P2
+      return this.p2Present() ? WARDEN_POS[1] : { x: CX, y: CY + 60 };
     }
 
     /* ---- input ---- */
@@ -151,7 +200,17 @@ this.player2VolleyCharge = 0;
   );
 }
 
+setPlayer2Away(away) {
+  this.player2Away = !!away;
+  if (this.player2Away) {
+    this.player2Aim.active = false;   // clear the stale reticle
+    this.warden2ShotAnim = 0;
+  }
+}
+
 setPlayer2Aim(x, y) {
+  // real input means somebody is back on that post
+  this.player2Away = false;
   // store the networked TARGET; update() glides the rendered reticle toward it
   this.player2Aim.tx = U.clamp(x, 0, C.WIDTH);
   this.player2Aim.ty = U.clamp(y, 0, C.HEIGHT);
@@ -189,6 +248,7 @@ strikeAt(ax, ay, playerSlot) {
 
     this.player2StrikeCd = C.STRIKE_COOLDOWN;
     this.player2Shots += 1;
+    this.warden2ShotAnim = 0.42;      // P2's own firing animation
   } else {
     if (this.strikeCd > 0) {
       return false;
@@ -488,10 +548,12 @@ strikeAt(ax, ay, playerSlot) {
 
     fireBolt(tx, ty, miss, playerSlot) {
   const slot = playerSlot || 1;
+  // bolts leave from the shoulder of whichever warden actually fired
+  const from = this.wardenPos(slot);
 
   this.bolts.push({
-    x1: CX + (slot === 2 ? 13 : -13),
-    y1: CY - 4,
+    x1: from.x,
+    y1: from.y - 14,
 
     x2: tx,
     y2: ty,
@@ -543,11 +605,12 @@ strikeAt(ax, ay, playerSlot) {
       if (typeof spec.angle === 'number') angle = spec.angle;
       else if (typeof spec.lane === 'number') angle = U.clamp(spec.lane, 0, 1) * U.TAU;
       else angle = U.rand(0, U.TAU);
-      // difficulty drifts up a little as the round goes on
-      const ramp = 1 + Math.min(this.time / 120, 0.5);
+      // raiders get faster as the round goes on, so late defence gets frantic
+      const ramp = 1 + Math.min(this.time / 75, 0.8);
       this.raiders.push(new OLW.Raider(angle, type, ramp));
       this.attackerSpawns++;
-      this.attackerCooldown = type === 'tough' ? 1.5 : type === 'fast' ? 0.7 : 0.95;
+      // shorter cooldowns → a busy attacker can genuinely overwhelm the wall
+      this.attackerCooldown = type === 'tough' ? 1.05 : type === 'fast' ? 0.45 : 0.6;
       return true;
     }
 
@@ -743,6 +806,9 @@ if (this.player2StrikeCd > 0) {
 }
 if (this.wardenShotAnim > 0) {
   this.wardenShotAnim = Math.max(0, this.wardenShotAnim - dt);
+}
+if (this.warden2ShotAnim > 0) {
+  this.warden2ShotAnim = Math.max(0, this.warden2ShotAnim - dt);
 }
       if (this.comboTimer > 0) {
         this.comboTimer -= dt;
@@ -972,9 +1038,11 @@ if (this.statsTick >= 0.05) {
     hits: this.player2Hits
   },
 
-  // versus outcome: wall fell → attacker won; timer expired → defender survived
+  // versus outcome: forced (opponent left) → that winner; else wall fell → attacker,
+  // timer expired → defender survived
   versus: this.versus,
-  versusWinner: this.versus ? (this.integrity <= 0 ? 'attacker' : 'defender') : null,
+  versusWinner: this.versus ? (this._forcedVersusWinner || (this.integrity <= 0 ? 'attacker' : 'defender')) : null,
+  versusForfeit: this.versus ? !!this._forcedVersusWinner : false,
   attackerSpawns: this.attackerSpawns,
   survived: this.versus ? +(this.versusDuration - this.versusTimeLeft).toFixed(1) : null
 };
@@ -1027,6 +1095,10 @@ this.stop();
     /* ---- render ---- */
     render() {
       const ctx = this.ctx;
+      // Map the 960x540 logical space onto the (possibly supersampled) buffer.
+      // Set every frame so a mid-match scale change takes effect immediately.
+      const s = this.renderScale || 1;
+      ctx.setTransform(s, 0, 0, s, 0, 0);
       ctx.save();
       // screen shake
       if (this.shake > 0) {
@@ -1045,17 +1117,38 @@ this.stop();
 
       // draw raiders behind the outpost (those above center) first is complex;
       // simple readable approach: outpost, then raiders, then near effects.
+      // Each warden is handed its OWN position, aim and shot timer, so the two
+      // figures face and fire independently rather than mirroring each other.
+      const crew = [{
+        slot: 1,
+        x: this.wardenPos(1).x,
+        y: this.wardenPos(1).y,
+        aimX: this.aim.x,
+        aimY: this.aim.y,
+        shooting: this.wardenShotAnim > 0,
+        shotAnim: this.wardenShotAnim
+      }];
+
+      if (this.p2Present()) {
+        const p2 = this.wardenPos(2);
+        crew.push({
+          slot: 2,
+          x: p2.x,
+          y: p2.y,
+          // before the phone sends its first packet, look outward, not at P1
+          aimX: this.player2Aim.active ? this.player2Aim.x : p2.x + 90,
+          aimY: this.player2Aim.active ? this.player2Aim.y : p2.y,
+          shooting: this.warden2ShotAnim > 0,
+          shotAnim: this.warden2ShotAnim,
+          away: this.player2Away
+        });
+      }
+
       OLW.Render.outpost(
         ctx,
         this.integrity / C.INTEGRITY_MAX,
         this.time,
-        {
-          p1Shooting: this.wardenShotAnim > 0,
-          p1ShotAnim: this.wardenShotAnim,
-          aimX: this.aim.x,
-          aimY: this.aim.y,
-          p2Shooting: this.player2StrikeCd > 0
-        }
+        { wardens: crew }
       );
 
       for (const r of drawList) r.draw(ctx);
@@ -1109,6 +1202,7 @@ this.stop();
 
 if (
   this.player2Aim.active &&
+  !this.player2Away &&
   OLW.Multiplayer &&
   OLW.Multiplayer.mode !== 'solo'
 ) {
@@ -1146,18 +1240,6 @@ if (
       );
 
       ctx.restore();
-
-      if (this.state === "paused") {
-        ctx.fillStyle = "rgba(8,10,14,0.62)";
-        ctx.fillRect(0, 0, C.WIDTH, C.HEIGHT);
-        ctx.textAlign = "center";
-        ctx.fillStyle = COL.parchment;
-        ctx.font = '800 44px "Segoe UI", system-ui, sans-serif';
-        ctx.fillText("PAUSED", CX, CY - 6);
-        ctx.font = '600 16px "Segoe UI", system-ui, sans-serif';
-        ctx.fillStyle = COL.parchmentDim;
-        ctx.fillText("Press P or the II button to resume", CX, CY + 26);
-      }
     }
 
   aimOnTarget() {

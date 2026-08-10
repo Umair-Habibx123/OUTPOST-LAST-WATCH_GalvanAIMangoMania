@@ -126,6 +126,36 @@
     linear-gradient(180deg, rgba(60, 48, 26, 0.95), rgba(30, 24, 14, 0.98)) !important;
 }
 
+/* The brown card art made the selected mode hard to read — give it an
+   unmistakable amber ring + glow + lift, and a ✓ badge. */
+.mode-picker .mode-option {
+  position: relative;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  transition: outline-color .12s ease, box-shadow .12s ease, transform .12s ease;
+}
+.mode-picker .mode-option.selected {
+  outline-color: var(--gold, #f5c36b) !important;
+  box-shadow: 0 0 0 2px rgba(245,195,107,.5), 0 0 22px rgba(232,161,58,.55) !important;
+  transform: translateY(-2px);
+}
+.mode-picker .mode-option.selected::after {
+  content: "✓";
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--gold, #f5c36b);
+  color: #241a08;
+  font-size: 12px;
+  font-weight: 900;
+  box-shadow: 0 2px 6px rgba(0,0,0,.5);
+}
+
 /* ------------------------------------------------- SHARED-WATCH LOBBY ------- */
 .player-card {
   border: 0 !important;
@@ -134,10 +164,13 @@
 .player-card.waiting {
   background-image: url("assets/art/ui/player-card-waiting.png") !important;
 }
+/* QR must sit on a SOLID light quiet-zone to scan — the decorative frame image
+   behind it broke reading on phones. Keep a themed border instead. */
 #game-qr {
-  padding: 26px !important;
-  background: url("assets/art/ui/qr-frame.png") center / 100% 100% no-repeat !important;
-  border: 0 !important;
+  padding: 16px !important;
+  background: #ffffff !important;
+  border: 3px solid #6b5836 !important;
+  border-radius: 10px !important;
 }
 
 /* --------------------------------------------------------- INPUTS ---------- */

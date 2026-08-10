@@ -113,8 +113,12 @@ OLW.Multiplayer = (function () {
         connected: true
       });
 
-      // reclaim our seat after a refresh / dropped connection
-      const saved = state.roomCode ? { roomCode: state.roomCode } : loadResume();
+      // reclaim our seat after a refresh / dropped connection. Sources, in order:
+      // live state → sessionStorage → the ?room= URL param (host resume path).
+      let urlRoom = null;
+      try { urlRoom = new URLSearchParams(location.search).get('room'); } catch (e) {}
+      const saved = state.roomCode ? { roomCode: state.roomCode }
+        : (loadResume() || (urlRoom ? { roomCode: urlRoom.toUpperCase() } : null));
       if (saved && saved.roomCode) {
         socket.emit('room:resume', { roomCode: saved.roomCode }, (res) => {
           if (res && res.ok) {
@@ -159,14 +163,20 @@ OLW.Multiplayer = (function () {
       emitLocal('matchStarted', payload);
     });
 
-    socket.on('room:cancelled', () => {
+    socket.on('room:cancelled', (payload) => {
+      const info = {
+        role: state.role,
+        winnerRole: payload && payload.winnerRole,
+        mode: (payload && payload.mode) || state.mode,
+        reason: payload && payload.reason
+      };
       state.room = null;
       state.roomCode = null;
       state.role = null;
       state.mode = 'solo';
       clearResume();
 
-      emitLocal('roomCancelled');
+      emitLocal('roomCancelled', info);
     });
 
     socket.on('player2:aim', (payload) => {

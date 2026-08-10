@@ -11,8 +11,13 @@ OLW.CONFIG = {
   // The fort wall in the map art is an ISOMETRIC ellipse (wider than tall), so
   // the play boundary is an ellipse too: WALL_RADIUS is the horizontal half-axis
   // and WALL_RADIUS_Y the vertical one. Keeps the ring + landings on the art wall.
-  WALL_RADIUS: 138,
-  WALL_RADIUS_Y: 92,
+  //
+  // These are MEASURED FROM THE MAP ART, not chosen freely — the painted palisade
+  // and the collision boundary have to be the same ellipse or raiders stop short
+  // of the wall (or walk through it). If you regenerate the maps, re-measure the
+  // painted wall and update these together; see docs/map-art-pipeline.md.
+  WALL_RADIUS: 180,
+  WALL_RADIUS_Y: 117,
   TOWER_RADIUS: 30,
 
   INTEGRITY_MAX: 100,

@@ -1137,13 +1137,13 @@ button {
 }
 
 .game-qr {
-    width: 214px;
-    height: 214px;
+    width: 232px;
+    height: 232px;
     margin: 18px auto;
-    padding: 12px;
+    padding: 16px;
     display: grid;
     place-items: center;
-    background: #f1dfbd;
+    background: #ffffff;
     box-shadow: 0 12px 28px rgba(0, 0, 0, .45)
 }
 
@@ -1151,6 +1151,29 @@ button {
 .game-qr canvas {
     max-width: 100%;
     height: auto
+}
+
+/* versus defend-time picker */
+.time-picker {
+    display: flex;
+    gap: 8px;
+    margin: 6px 0 12px
+}
+.time-opt {
+    flex: 1;
+    padding: 9px 6px;
+    border: 1px solid var(--line);
+    background: rgba(10, 13, 18, .6);
+    color: var(--sand);
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 800;
+    font-size: 13px
+}
+.time-opt.selected {
+    border-color: var(--amber);
+    background: rgba(40, 32, 16, .9);
+    color: var(--gold)
 }
 
 .qr-url {
