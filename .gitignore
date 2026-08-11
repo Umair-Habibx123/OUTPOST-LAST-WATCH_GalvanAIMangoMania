@@ -6,4 +6,7 @@ npm-debug.log*
 .vscode/
 .idea/
 extras/
+assets-old/
+docs/
+/docs/
 .claude/

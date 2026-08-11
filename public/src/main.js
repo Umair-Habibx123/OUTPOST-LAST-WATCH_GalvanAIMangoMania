@@ -658,11 +658,16 @@ if (voiceGuide) {
         e.stopImmediatePropagation();
         return;
       }
-      // Nothing else to do: there is no pause. A watch runs to a win or a loss.
+      // solo only — game.pause() refuses in any two-player mode
+      if (game.state === 'playing') game.pause();
+      else if (game.state === 'paused') game.resume();
       return;
     }
 
-    if (e.code === 'Space' && game.state === 'playing') {
+    if (e.key === 'p' || e.key === 'P') {
+      if (game.state === 'playing') game.pause();
+      else if (game.state === 'paused') game.resume();
+    } else if (e.code === 'Space' && game.state === 'playing') {
       e.preventDefault();
       game.strike();
     } else if ((e.key === 'q' || e.key === 'Q') && game.state === 'playing') {
@@ -836,9 +841,22 @@ document
     });
   });
 
-// The pause button is gone — a watch cannot be suspended. Hidden rather than
-// deleted from the markup so the HUD corner layout is untouched.
-(() => { const b = $('pause-btn'); if (b) b.remove(); })();
+// Pause exists again for solo play. The button hides itself in two-player
+// modes, where game.pause() would refuse anyway — better to not offer it than
+// to offer a button that does nothing.
+(() => {
+  const b = $('pause-btn');
+  if (!b) return;
+  b.addEventListener('click', () => {
+    if (game.state === 'playing') game.pause();
+    else if (game.state === 'paused') game.resume();
+  });
+  const sync = () => { b.style.display = game.canPause() ? '' : 'none'; };
+  sync();
+  OLW.Multiplayer.on('matchStarted', sync);
+  OLW.Multiplayer.on('roomState', sync);
+  OLW.Multiplayer.on('roomCancelled', sync);
+})();
 
 $('volley-btn').addEventListener('click', () => {
   game.useVolley();

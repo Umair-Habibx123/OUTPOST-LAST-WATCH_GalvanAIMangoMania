@@ -17,40 +17,61 @@ window.OLW = window.OLW || {};
   const SPAWN_DIST = Math.sqrt(CX * CX + CY * CY) + 40;
 
   /* ---------------- Raider ---------------- */
+  /* Every hit removes exactly 1 hp regardless of weapon, so hp IS the shot
+     count. A 3-hp brute died to three taps of the starting sidearm, which is
+     why heavies felt like paper. */
   const RAIDER_TYPES = {
-    basic: { hp: 1, speed: 42, r: 15, dmg: 8,  rim: COL.raiderRim,      body: COL.raider },
+    basic: { hp: 2, speed: 42, r: 15, dmg: 8,  rim: COL.raiderRim,      body: COL.raider },
     fast:  { hp: 1, speed: 74, r: 13, dmg: 6,  rim: COL.raiderFastRim,  body: COL.raiderFast },
-    tough: { hp: 3, speed: 27, r: 20, dmg: 17, rim: COL.raiderToughRim, body: COL.raiderTough },
+    tough: { hp: 5, speed: 27, r: 20, dmg: 17, rim: COL.raiderToughRim, body: COL.raiderTough },
   };
 
+  /* CREATURES are the top of the food chain: the same three size tiers, but
+     half again as tough and half again as dangerous. A creature brute is the
+     worst thing that can reach the wall. They pay for it in speed — bigger,
+     heavier, slower — so a wave of them is a different problem to a rush of
+     fast humans rather than just a bigger number. */
+  const CREATURE = { hp: 1.5, dmg: 1.5, speed: 0.9, r: 1.15 };
+
   class Raider {
-    constructor(angle, type, speedMul) {
+    constructor(angle, type, speedMul, creature) {
       const t = RAIDER_TYPES[type] || RAIDER_TYPES.basic;
+      const m = creature ? CREATURE : null;
       this.type = type;
+      this.creature = !!creature;
       this.angle = angle;                     // approach direction (from edge toward center)
       this.x = CX + Math.cos(angle) * SPAWN_DIST;
       this.y = CY + Math.sin(angle) * SPAWN_DIST;
-      this.speed = t.speed * (speedMul || 1);
-      this.hp = t.hp;
-      this.maxHp = t.hp;
-      this.r = t.r;
-      this.dmg = t.dmg;
+      this.speed = t.speed * (speedMul || 1) * (m ? m.speed : 1);
+      this.hp = m ? Math.ceil(t.hp * m.hp) : t.hp;
+      this.maxHp = this.hp;
+      this.r = m ? Math.round(t.r * m.r) : t.r;
+      this.dmg = m ? Math.round(t.dmg * m.dmg) : t.dmg;
       this.rim = t.rim;
       this.body = t.body;
       this.alive = true;
       this.landed = false;
       this.hitFlash = 0;
       this.bob = Math.random() * U.TAU;       // walk animation phase
+      this.auraPhase = Math.random() * U.TAU; // so a pack shimmers, not blinks in unison
       this.deadTimer = 0;
     }
 
     update(dt) {
       if (!this.alive) { this.deadTimer -= dt; return; }
       this.bob += dt * (4 + this.speed * 0.04);
-      // move toward center
+      /* Fair reaction time in every direction.
+         The field is 16:9, so a raider entering from the top or bottom edge has
+         far less ground to cross before the wall than one entering from the
+         side — measured, 153px against 300px. Tightening the wall only recovers
+         part of that, so steep approaches also move slower. The player now gets
+         roughly comparable warning whichever way a raider comes from, instead of
+         vertical attackers arriving almost on top of the palisade. */
       const dirx = Math.cos(this.angle), diry = Math.sin(this.angle);
-      this.x -= dirx * this.speed * dt;
-      this.y -= diry * this.speed * dt;
+      const steep = Math.abs(diry);                 // 0 = from the side, 1 = from above/below
+      const approach = 1 - 0.28 * steep;
+      this.x -= dirx * this.speed * approach * dt;
+      this.y -= diry * this.speed * approach * dt;
       if (this.hitFlash > 0) this.hitFlash -= dt;
       // elliptical wall: normalised distance <= 1 means the raider reached it.
       // the +r term lets bigger raiders make contact slightly sooner.
@@ -107,9 +128,65 @@ window.OLW = window.OLW || {};
     ctx.restore();
   }
 
+  /* THREAT AURA.
+     Raiders are dark silhouettes on dark ground, which made them read as scenery
+     rather than danger. Each class now carries a coloured aura: a soft ground
+     pool under the feet plus a rising body glow, pulsing on its own phase so a
+     crowd shimmers instead of blinking in unison. Tough raiders burn red and
+     pulse slow and heavy; fast ones are a cold quick flicker; creatures get a
+     sickly green. It brightens as they close on the wall — the closer the
+     threat, the louder it reads. Drawn UNDER the sprite so it never muddies the
+     silhouette. */
+  const AURA = {
+    basic:    { r: 233, g: 150, b: 68,  power: 0.88, speed: 3.4 },
+    fast:     { r: 95,  g: 190, b: 226, power: 0.95, speed: 6.8 },
+    tough:    { r: 224, g: 58,  b: 40,  power: 1.30, speed: 2.2 },
+    creature: { r: 138, g: 214, b: 96,  power: 1.15, speed: 3.0 }
+  };
+
+  function threatAura(ctx, rd) {
+    const cfg = (rd.creature ? AURA.creature : AURA[rd.type]) || AURA.basic;
+    const r = rd.r;
+
+    // proximity: 0 far out, 1 at the wall
+    const dx = (rd.x - CX) / C.WALL_RADIUS, dy = (rd.y - CY) / C.WALL_RADIUS_Y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const near = U.clamp(1 - (dist - 1) / 2.6, 0, 1);
+
+    const pulse = 0.72 + Math.sin(rd.bob * cfg.speed + rd.auraPhase) * 0.28;
+    const a = cfg.power * pulse * (0.48 + near * 0.52);
+    const rgb = cfg.r + ',' + cfg.g + ',' + cfg.b;
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+
+    // ground pool — sells weight and keeps them readable on any map
+    const pool = ctx.createRadialGradient(0, r * 0.92, 0, 0, r * 0.92, r * 2.5);
+    pool.addColorStop(0, 'rgba(' + rgb + ',' + (a * 0.58).toFixed(3) + ')');
+    pool.addColorStop(1, 'rgba(' + rgb + ',0)');
+    ctx.fillStyle = pool;
+    ctx.beginPath();
+    ctx.ellipse(0, r * 0.92, r * 2.5, r * 0.95, 0, 0, U.TAU);
+    ctx.fill();
+
+    // body glow rising off the figure
+    const body = ctx.createRadialGradient(0, -r * 0.5, 0, 0, -r * 0.5, r * 2.1);
+    body.addColorStop(0, 'rgba(' + rgb + ',' + (a * 0.40).toFixed(3) + ')');
+    body.addColorStop(1, 'rgba(' + rgb + ',0)');
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    ctx.arc(0, -r * 0.5, r * 2.1, 0, U.TAU);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
   function drawSilhouette(ctx, rd, walk) {
     const r = rd.r;
     const flash = rd.hitFlash > 0;
+
+    // threat aura first, so the sprite always sits cleanly on top of it
+    if (rd.alive) threatAura(ctx, rd);
 
     // Upright sprite that walks toward the outpost: no full rotation (that made
     // side/top raiders look tilted). We keep them vertical, flip to face their

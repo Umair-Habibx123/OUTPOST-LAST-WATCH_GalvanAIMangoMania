@@ -48,6 +48,41 @@ OLW.Voice = (function () {
 
   const COMMAND_COOLDOWN = 650;
 
+  /* ONE ACTIVATION PER UTTERANCE.
+     A time-based cooldown alone cannot make this safe. Recognition runs with
+     interimResults, so a single spoken "dragon" arrives as a stream of interim
+     transcripts that all still contain the word, often for several seconds
+     while the phrase is being refined. Any cooldown short enough to feel
+     responsive is also short enough to let the SAME utterance fire again and
+     again — which is why one word deployed dragons until the stock ran out and
+     then repeated "dragon strike unavailable" forever.
+
+     So activation is latched against the utterance itself: a command may run
+     once per recognition result, no matter how many interim updates that result
+     produces. A new utterance (or a new recognition session, since indices
+     restart at 0) clears the latch. The cooldown stays as a backstop for the
+     case where a phrase is finalised and immediately re-finalised. */
+  let voiceSession = 0;          // bumped whenever recognition (re)starts
+  let latchedUtterance = "";     // "session:resultIndex" currently latched
+  const latchedCommands = new Set();
+
+  function utteranceKey(resultIndex) {
+    return voiceSession + ':' + resultIndex;
+  }
+
+  function commandLatched(id, resultIndex) {
+    const key = utteranceKey(resultIndex);
+    if (key !== latchedUtterance) {
+      latchedUtterance = key;
+      latchedCommands.clear();
+    }
+    return latchedCommands.has(id);
+  }
+
+  function latchCommand(id) {
+    latchedCommands.add(id);
+  }
+
   /* ==========================================================================
      TALK-BACK VOICE
      ========================================================================== */
@@ -660,7 +695,7 @@ OLW.Voice = (function () {
     lastCommandAt = performance.now();
   }
 
-  function handleTranscript(transcript, isFinal = false) {
+  function handleTranscript(transcript, isFinal = false, resultIndex = 0) {
     const text = normalise(transcript);
 
     if (!text) {
@@ -672,9 +707,17 @@ OLW.Voice = (function () {
         continue;
       }
 
+      // already acted on this utterance — every later interim update of the
+      // same phrase must be ignored, however long it keeps arriving
+      if (commandLatched(command.id, resultIndex)) {
+        return true;
+      }
+
       if (!commandCanRun(command.id)) {
         return true;
       }
+
+      latchCommand(command.id);
 
       /*
         Reserve the command immediately.
@@ -803,6 +846,12 @@ OLW.Voice = (function () {
     recognition.onstart = () => {
       starting = false;
       running = true;
+      // Result indices restart at 0 for every session, so without a session
+      // counter a fresh utterance would collide with the previous session's
+      // latch and be swallowed.
+      voiceSession += 1;
+      latchedUtterance = "";
+      latchedCommands.clear();
     };
 
     recognition.onaudiostart = () => {
@@ -828,7 +877,7 @@ OLW.Voice = (function () {
 
         const transcript = result[0].transcript || "";
 
-        if (handleTranscript(transcript, result.isFinal)) {
+        if (handleTranscript(transcript, result.isFinal, i)) {
           break;
         }
       }
@@ -1645,6 +1694,9 @@ OLW.Voice = (function () {
     closeGuide,
     isGuideOpen,
     downloadGuide,
+
+    // exposed for QA: lets a test replay an interim transcript stream without a mic
+    _handleTranscript: handleTranscript,
 
     commands: VOICE_COMMANDS,
   };

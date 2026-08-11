@@ -1064,7 +1064,9 @@ if (
         const row = atlasDirectionRow(Math.atan2(target.y - g.gy, target.x - g.gx));
         const firing = a.muzzle === index && a.muzzleLife > 0;
         const frame = firing ? (a.muzzleLife>.065 ? 2 : (a.muzzleLife>.025 ? 3 : 4)) : 1;
-        if (atlas) drawAtlasFrame(ctx, atlas, 5, 8, frame, row, g.gx, g.gy, 59, .98);
+        // 82 not 59: atlas cells reserve the space below the foot anchor, so the
+        // figure fills ~74% of the cell. Sized to stand level with a warden.
+        if (atlas) drawAtlasFrame(ctx, atlas, 5, 8, frame, row, g.gx, g.gy, 82, .98);
         else if (OLW.Assets?.ready?.('backupGuard')) { const im=OLW.Assets.images.backupGuard,w=57,h=w*im.naturalHeight/im.naturalWidth; ctx.drawImage(im,g.gx-w/2,g.gy-h*.78,w,h); }
       });
       const bx = (a.guards[0].gx + a.guards[1].gx) / 2;
@@ -1078,7 +1080,9 @@ if (
       if (OLW.Assets?.ready?.('warBeastAtlas')) {
         const atlas = OLW.Assets.images.warBeastAtlas, row = atlasDirectionRow(h.angle || 0);
         const frame = h.pounce > 0 ? (h.pounce > .075 ? 4 : 5) : Math.floor(h.phase * .72) % 4;
-        drawAtlasFrame(ctx, atlas, 6, 8, frame, row, h.x, h.y, h.pounce > 0 ? 84 : 75, .99);
+        // widened for the same reason as the guards — a war hound should read
+        // as a heavy animal, roughly chest-high to a warden
+        drawAtlasFrame(ctx, atlas, 6, 8, frame, row, h.x, h.y, h.pounce > 0 ? 118 : 105, .99);
       } else if (OLW.Assets?.ready?.('warBeast')) {
         const im = OLW.Assets.images.warBeast, w = 72, hh = w * im.naturalHeight / im.naturalWidth;
         ctx.drawImage(im, h.x - w / 2, h.y - hh * .76, w, hh);

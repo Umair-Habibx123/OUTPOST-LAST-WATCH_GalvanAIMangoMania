@@ -157,10 +157,18 @@ this.player2VolleyCharge = 0;
       this._raf = null;
     }
 
-    /* There is no pause in this game — a watch runs until it is won or lost.
-       These remain as no-ops because menus/modals elsewhere still call them,
-       and because a pause would be a free timeout in any two-player match. */
-    pause() { /* intentionally does nothing */ }
+    /* Pause is a SOLO privilege. In any two-player mode it would be a free
+       timeout the other player never agreed to — one side freezing the wall
+       mid-raid, or an attacker stalling the clock — so it is refused there and
+       a watch with someone else in it runs until it is won or lost. */
+    canPause() {
+      const mp = OLW.Multiplayer;
+      return !mp || !mp.mode || mp.mode === 'solo';
+    }
+
+    pause() {
+      if (this.state === 'playing' && this.canPause()) this.state = 'paused';
+    }
     resume() {
       // recover cleanly from any state saved by an older build
       if (this.state === "paused") {
@@ -590,7 +598,10 @@ strikeAt(ax, ay, playerSlot) {
 
     /* ---- spawning ---- */
     spawnRaider(spec) {
-      this.raiders.push(new OLW.Raider(spec.angle, spec.type, spec.speedMul));
+      // spec.creature was being dropped here, so the wave director's creature
+      // rolls never reached a raider — creatures existed as art and as a stat
+      // block but could not actually appear in a wave.
+      this.raiders.push(new OLW.Raider(spec.angle, spec.type, spec.speedMul, spec.creature));
     }
 
     // Versus: the phone ATTACKER requests a raider from a lane. Host-authoritative
@@ -607,7 +618,9 @@ strikeAt(ax, ay, playerSlot) {
       else angle = U.rand(0, U.TAU);
       // raiders get faster as the round goes on, so late defence gets frantic
       const ramp = 1 + Math.min(this.time / 75, 0.8);
-      this.raiders.push(new OLW.Raider(angle, type, ramp));
+      // late in a round the attacker starts getting creatures instead of humans
+      const creature = this.time > 35 && Math.random() < Math.min((this.time - 35) / 90, 0.45);
+      this.raiders.push(new OLW.Raider(angle, type, ramp, creature));
       this.attackerSpawns++;
       // shorter cooldowns → a busy attacker can genuinely overwhelm the wall
       this.attackerCooldown = type === 'tough' ? 1.05 : type === 'fast' ? 0.45 : 0.6;
@@ -1240,6 +1253,18 @@ if (
       );
 
       ctx.restore();
+
+      if (this.state === "paused") {
+        ctx.fillStyle = "rgba(8,10,14,0.62)";
+        ctx.fillRect(0, 0, C.WIDTH, C.HEIGHT);
+        ctx.textAlign = "center";
+        ctx.fillStyle = COL.parchment;
+        ctx.font = '800 44px "Segoe UI", system-ui, sans-serif';
+        ctx.fillText("PAUSED", CX, CY - 6);
+        ctx.font = '600 16px "Segoe UI", system-ui, sans-serif';
+        ctx.fillStyle = COL.parchmentDim;
+        ctx.fillText("Press P or the II button to resume", CX, CY + 26);
+      }
     }
 
   aimOnTarget() {

@@ -183,8 +183,8 @@ OLW.Settings = (function () {
               <li><span>Left-click / Space</span> fire</li>
               <li><span>1 – 6</span> switch weapons</li>
               <li><span>Z X C V</span> use field-kit items</li>
-              <li><span>Q</span> signal volley &nbsp; · &nbsp; <span>Esc</span> close menus</li>
-              <li><span>No pause</span> a watch runs until it is won or lost</li>
+              <li><span>Q</span> signal volley &nbsp; · &nbsp; <span>P / Esc</span> pause (solo only)</li>
+              <li><span>Two players</span> no pause — the watch runs until it is won or lost</li>
             </ul>
           </div>
         </div>

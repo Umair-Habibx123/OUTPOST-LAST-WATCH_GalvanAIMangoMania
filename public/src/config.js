@@ -12,12 +12,16 @@ OLW.CONFIG = {
   // the play boundary is an ellipse too: WALL_RADIUS is the horizontal half-axis
   // and WALL_RADIUS_Y the vertical one. Keeps the ring + landings on the art wall.
   //
-  // These are MEASURED FROM THE MAP ART, not chosen freely — the painted palisade
-  // and the collision boundary have to be the same ellipse or raiders stop short
-  // of the wall (or walk through it). If you regenerate the maps, re-measure the
-  // painted wall and update these together; see docs/map-art-pipeline.md.
-  WALL_RADIUS: 180,
-  WALL_RADIUS_Y: 117,
+  // Started as a measurement of the painted palisade (180 x 117) but is now
+  // pulled in deliberately: the canvas is 16:9, so a raider approaching from
+  // above or below crossed far less visible ground than one from the side and
+  // reached the wall almost immediately. Tightening the ellipse buys back that
+  // reaction time. It now sits slightly INSIDE the painted wall (~12px on the
+  // sides, ~21px top and bottom), which is the right way round — a raider
+  // stopping a little short of the palisade reads fine, walking through it does
+  // not. See docs/map-art-pipeline.md before regenerating maps.
+  WALL_RADIUS: 168,
+  WALL_RADIUS_Y: 96,
   TOWER_RADIUS: 30,
 
   INTEGRITY_MAX: 100,
