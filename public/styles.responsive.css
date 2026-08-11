@@ -370,8 +370,16 @@ body {
     bottom: 8px !important;
   }
 
+  /* settings must be re-spaced here too — without it the base 96px lands on
+     top of the quit button on short landscape screens and the gear looks like
+     it is missing entirely */
+  .settings-btn {
+    right: 85px !important;
+    bottom: 8px !important;
+  }
+
   .ars-quit {
-    right: 84px !important;
+    right: 123px !important;
     left: auto !important;
     bottom: 8px !important;
   }

@@ -93,7 +93,7 @@ export function configureSockets(io) {
           ok: true,
           room,
           joinUrl:
-            `${publicUrl}/controller.html?room=` +
+            `${publicUrl}/remote.html?room=` +
             encodeURIComponent(room.code)
         });
       } catch (error) {
@@ -329,10 +329,19 @@ export function configureSockets(io) {
     // WebRTC signalling relay for the HD host→controller video mirror. The server
     // is a dumb relay: it just forwards each message to the OTHER peer in the room
     // (offer/answer/ice + up/down/request), never inspecting the media.
-    // 'stream:quality' is the receiver's ABR verdict travelling back to the
-    // sender (which rendition to switch to) — same dumb-relay treatment.
+    /* 'stream:quality' is the receiver's ABR verdict travelling back to the
+       sender (which rendition to switch to) — same dumb-relay treatment.
+
+       'remote:*' carries the Remote Control's non-aim actions: switching
+       weapon, using a field-kit item, firing the volley, pausing. The remote is
+       an INPUT DEVICE for the game running on the host screen, so these are
+       just the host's own controls arriving over the wire. The host stays
+       authoritative — it validates ammo, cooldowns and ownership exactly as it
+       would for a mouse click. */
     ['rtc:request', 'rtc:offer', 'rtc:answer', 'rtc:ice', 'rtc:up', 'rtc:down',
-     'stream:quality', 'stream:cap'].forEach((ev) => {
+     'stream:quality', 'stream:cap',
+     'remote:weapon', 'remote:item', 'remote:volley', 'remote:pause',
+     'remote:loadout'].forEach((ev) => {
       socket.on(ev, (payload) => {
         const code = String((payload && payload.roomCode) || socket.data.roomCode || '')
           .trim().toUpperCase();

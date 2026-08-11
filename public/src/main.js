@@ -237,6 +237,78 @@ OLW.Multiplayer.on('player2Volley', () => {
   else game.usePlayer2Volley();
 });
 
+/* ---------------- REMOTE CONTROL input ----------------------------------
+   The remote is not a second player — it is this player holding a different
+   input device. A phone, a tablet, a second laptop. So these arrive as the
+   host's OWN controls and run through exactly the same entry points a mouse
+   click or a number key would, which means ammo, cooldowns, ownership and
+   pause rules are enforced once, here, and cannot be bypassed by anything the
+   remote sends. */
+(() => {
+  const sock = OLW.Multiplayer.socket;
+  if (!sock) return;
+
+  const remoteDrivesThePlayer = () => OLW.Multiplayer.mode === 'solophone';
+
+  sock.on('remote:weapon', (p) => {
+    if (!p || !p.id || !remoteDrivesThePlayer()) return;
+    OLW.Arsenal?.equip?.(p.id);
+  });
+
+  sock.on('remote:item', (p) => {
+    if (!p || !p.id || !remoteDrivesThePlayer()) return;
+    OLW.Arsenal?.useItem?.(p.id);
+  });
+
+  sock.on('remote:volley', () => {
+    if (!remoteDrivesThePlayer()) return;
+    game.useVolley();
+  });
+
+  sock.on('remote:pause', () => {
+    if (!remoteDrivesThePlayer()) return;
+    // game.pause() refuses outside solo, so this cannot freeze a shared watch
+    if (game.state === 'playing') game.pause();
+    else if (game.state === 'paused') game.resume();
+  });
+})();
+
+/* Push the loadout to the remote so its buttons show what this player actually
+   owns, with live ammo counts — the remote should mirror the real arsenal, not
+   a hardcoded list. */
+function sendRemoteLoadout() {
+  const sock = OLW.Multiplayer.socket;
+  const A = OLW.Arsenal;
+  if (!sock || !OLW.Multiplayer.roomCode || !A || !A.WEAPONS) return;
+  sock.emit('remote:loadout', {
+    roomCode: OLW.Multiplayer.roomCode,
+    weapons: A.WEAPONS.filter((w) => A.owned(w)).map((w) => ({
+      id: w.id, name: w.name, key: w.key,
+      ammo: w.starter ? -1 : A.runAmmo(w.id),
+      current: A.current && A.current.id === w.id
+    })),
+    items: (A.CONSUMABLES || []).map((c) => ({
+      id: c.id, name: c.name, key: c.key, count: A.itemCount ? A.itemCount(c.id) : 0
+    }))
+  });
+}
+
+/* Keep the remote's buttons truthful: resend whenever the arsenal changes, and
+   on a slow heartbeat so a remote that connects mid-run is never left with a
+   stale view. Throttled — ammo ticks on every shot. */
+(() => {
+  let last = 0;
+  const push = () => {
+    const now = performance.now();
+    if (now - last < 400) return;
+    last = now;
+    sendRemoteLoadout();
+  };
+  ['matchStarted', 'roomState', 'resumed'].forEach((e) => OLW.Multiplayer.on(e, push));
+  setInterval(() => { if (game.state === 'playing') push(); }, 1500);
+  window.addEventListener('olw:loadout', push);
+})();
+
 /* ---------------- in-game announcement (toast + spoken warden line) ----------
    Used for the co-op partner events, which happen mid-fight when the player is
    watching the wall, not the lobby card. */

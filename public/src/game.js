@@ -157,13 +157,15 @@ this.player2VolleyCharge = 0;
       this._raf = null;
     }
 
-    /* Pause is a SOLO privilege. In any two-player mode it would be a free
-       timeout the other player never agreed to — one side freezing the wall
-       mid-raid, or an attacker stalling the clock — so it is refused there and
-       a watch with someone else in it runs until it is won or lost. */
+    /* Pause is allowed whenever ONE human is playing — that includes
+       'solophone', which is this same player driving the game from a Remote
+       Control instead of the keyboard. It is refused only in co-op and versus,
+       where a second person is on the other end and a pause would be a free
+       timeout they never agreed to. */
     canPause() {
       const mp = OLW.Multiplayer;
-      return !mp || !mp.mode || mp.mode === 'solo';
+      const mode = mp && mp.mode;
+      return !mode || mode === 'solo' || mode === 'solophone';
     }
 
     pause() {

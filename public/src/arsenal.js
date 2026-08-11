@@ -211,6 +211,11 @@ OLW.Arsenal = (function () {
 
   A.owned = (w) => w.starter || D.isUnlocked(w.id);
   A.runAmmo = (id) => byId(id).starter ? Infinity : (A._run[id] || 0);
+  // exposed so the Remote Control can mirror the real arsenal instead of
+  // hardcoding a weapon list that would drift out of sync with the game
+  A.WEAPONS = WEAPONS;
+  A.CONSUMABLES = CONSUMABLES;
+  A.itemCount = (id) => A._items[id] || 0;
   A.consume = (
   id,
   n

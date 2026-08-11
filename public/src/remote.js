@@ -1,4 +1,16 @@
-// src/controller.js
+// src/remote.js
+/* REMOTE CONTROL client.
+
+   This is not "player 2". It is an input device for the game running on the
+   host screen — a phone, a tablet, a spare laptop, or a gamepad paired to this
+   page. The game stays on the host; only the controls move. So in 'solophone'
+   (one player, remote input) this page exposes the FULL control surface: aim,
+   fire, volley, weapon switching, field kit and pause.
+
+   The co-op and versus modes still route through here too, and there the same
+   page acts as a genuine second player's pad — hence the mode checks.
+
+   The host re-validates every action. Nothing this page sends is trusted. */
 
 (function () {
   // stable per-phone id so a refresh reclaims the same seat
@@ -618,6 +630,55 @@
     if ((b[0] && b[0].pressed) || (b[5] && b[5].pressed) || (b[7] && b[7].pressed)) sendStrike();
   }
   requestAnimationFrame(gamepadLoop);
+
+  /* ---------------- full arsenal on the remote ----------------
+     When this device is driving the game (solo-phone), it is the player's
+     controls — not a second player's pad. So it gets the whole arsenal:
+     weapons, field kit and pause, mirrored live from the host so the buttons
+     always show what is really owned and how much ammo is really left. The
+     host re-validates everything; nothing here is trusted. */
+  const arsenalWrap = document.getElementById('remote-arsenal');
+  const weaponStrip = document.getElementById('remote-weapons');
+  const itemStrip = document.getElementById('remote-items');
+  const pauseBtn = document.getElementById('remote-pause');
+
+  function drivesTheGame() { return roomMode === 'solophone'; }
+
+  function chip(label, sub, cls, onTap) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'remote-chip' + (cls ? ' ' + cls : '');
+    b.innerHTML = '<span>' + label + '</span><small>' + sub + '</small>';
+    b.addEventListener('click', () => { onTap(); if (navigator.vibrate) navigator.vibrate(8); });
+    return b;
+  }
+
+  socket.on('remote:loadout', (p) => {
+    if (!p || !drivesTheGame()) { arsenalWrap.classList.add('hidden'); return; }
+    arsenalWrap.classList.remove('hidden');
+    pauseBtn.classList.remove('hidden');
+
+    weaponStrip.innerHTML = '';
+    (p.weapons || []).forEach((w) => {
+      const ammo = w.ammo < 0 ? '∞' : w.ammo;
+      const cls = (w.current ? 'cur ' : '') + (w.ammo === 0 ? 'empty' : '');
+      weaponStrip.appendChild(chip(w.name, ammo, cls.trim(), () => {
+        socket.emit('remote:weapon', { roomCode, id: w.id });
+      }));
+    });
+
+    itemStrip.innerHTML = '';
+    (p.items || []).forEach((c) => {
+      itemStrip.appendChild(chip(c.name, 'x' + c.count, c.count > 0 ? '' : 'empty', () => {
+        socket.emit('remote:item', { roomCode, id: c.id });
+      }));
+    });
+  });
+
+  pauseBtn.addEventListener('click', () => {
+    if (!roomCode || !drivesTheGame()) return;
+    socket.emit('remote:pause', { roomCode });
+  });
 
   volleyButton.addEventListener('click', () => {
     if (

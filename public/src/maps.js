@@ -77,10 +77,29 @@ OLW.Maps = (function () {
 
   M.active = () => byId(M.currentId);
 
+  /* TITLE BACKDROP FOLLOWS THE MAP PICK.
+     A fresh visitor sees the painted title backdrop; the moment they choose a
+     battlefield the title screen becomes that battlefield. The CSS keeps the
+     original artwork as the var() fallback, so if a map image is missing or
+     fails to decode the screen silently stays on the backdrop rather than
+     showing an empty gradient. The image is preloaded first for the same
+     reason — the swap only happens once the new art is actually ready, so
+     there is never a flash of nothing between the two. */
+  function applyTitleBackdrop(id) {
+    const title = document.getElementById('screen-title');
+    if (!title) return;
+    const url = 'assets/art/maps/map-' + id + '-960.webp';
+    const probe = new Image();
+    probe.onload = () => title.style.setProperty('--title-bg', 'url("' + url + '")');
+    probe.onerror = () => title.style.removeProperty('--title-bg');   // back to the backdrop
+    probe.src = url;
+  }
+
   M.setMap = function (id) {
     M.currentId = byId(id).id;
     if (D) D.patch({ map: M.currentId });
     renderPicker();
+    applyTitleBackdrop(M.currentId);
   };
 
   /* ---------- install (wrap Game) ---------- */

@@ -1,4 +1,4 @@
-<!-- controller.html -->
+<!-- remote.html — the Remote Control client (phone, tablet, second laptop) -->
 
 <!doctype html>
 <html lang="en">
@@ -13,7 +13,7 @@
 
   <meta name="theme-color" content="#090c11" />
 
-  <title>Outpost Controller</title>
+  <title>Outpost — Remote Control</title>
 
   <style>
     :root {
@@ -303,6 +303,34 @@
     }
     .stream-quality.visible { opacity: 1; }
     .stream-quality.degraded { color: #d8cdb5; }
+
+    /* ---- remote arsenal: weapons + field kit, thumb-sized ---- */
+    .remote-arsenal { display: flex; flex-direction: column; gap: 4px; margin: 8px 0 4px; }
+    .remote-arsenal.hidden { display: none; }
+    .remote-strip-label {
+      font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
+      color: #9a927f; padding-left: 2px;
+    }
+    .remote-strip {
+      display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px;
+      scrollbar-width: none;
+    }
+    .remote-strip::-webkit-scrollbar { display: none; }
+    .remote-chip {
+      flex: 0 0 auto; min-width: 62px; padding: 7px 9px;
+      background: rgba(10,13,18,.85); border: 1px solid #3b3b44; border-radius: 9px;
+      color: #e9dfcb; font: 800 11px/1.25 system-ui, sans-serif; text-align: left;
+      cursor: pointer; -webkit-tap-highlight-color: transparent;
+    }
+    .remote-chip small { display: block; font-weight: 600; color: #9a927f; font-size: 10px; }
+    .remote-chip.cur { border-color: #e8a13a; background: rgba(40,32,16,.92); color: #f5c36b; }
+    .remote-chip.empty { opacity: .42; }
+    .remote-pause {
+      width: 100%; margin-top: 8px; padding: 11px; border-radius: 9px;
+      background: rgba(10,13,18,.85); border: 1px solid #4a4436; color: #d8cdb5;
+      font: 800 12px system-ui, sans-serif; letter-spacing: .08em; cursor: pointer;
+    }
+    .remote-pause.hidden { display: none; }
 
     .aim-pad::before,
     .aim-pad::after {
@@ -602,6 +630,16 @@
           <div id="mobile-reticle" class="mobile-reticle"></div>
         </div>
 
+        <!-- Full arsenal on the remote: this device IS the player's controls,
+             so weapons and field kit have to be reachable without walking back
+             to the host screen. Populated live from the host's real loadout. -->
+        <div id="remote-arsenal" class="remote-arsenal hidden">
+          <div class="remote-strip-label">Weapons</div>
+          <div id="remote-weapons" class="remote-strip"></div>
+          <div class="remote-strip-label">Field kit</div>
+          <div id="remote-items" class="remote-strip"></div>
+        </div>
+
         <div class="controller-actions">
           <button
             id="mobile-volley"
@@ -615,6 +653,10 @@
             Fire
           </button>
         </div>
+
+        <button id="remote-pause" class="remote-pause hidden" type="button">
+          ❚❚ Pause
+        </button>
 
         <!-- versus attacker UI (shown instead of aim/fire when mode = versus) -->
         <div id="attacker-panel" class="attacker-panel hidden">
@@ -688,6 +730,6 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="src/stream.js"></script>
-  <script src="src/controller.js"></script>
+  <script src="src/remote.js"></script>
 </body>
 </html>

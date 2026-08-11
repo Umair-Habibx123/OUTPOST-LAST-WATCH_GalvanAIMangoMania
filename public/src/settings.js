@@ -25,7 +25,7 @@ OLW.Settings = (function () {
   // hands-free option (move hand to aim, make a fist to fire).
   const CONTROLMODES = [
     { id: 'device', name: 'Mouse / Keys' },
-    { id: 'gesture', name: 'Hand (cam)' },
+    // { id: 'gesture', name: 'Hand (cam)' },
   ];
 
   const RETICLES = [

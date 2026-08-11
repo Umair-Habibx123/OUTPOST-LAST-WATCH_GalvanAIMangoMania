@@ -619,6 +619,17 @@ app.post('/api/versus-result', async (request, response) => {
   }
 });
 
+/* The Remote Control page used to live at /controller.html. Printed QR codes,
+   bookmarks and any already-open phone still point there, and the SPA
+   catch-all would silently hand them the HOST game instead — which looks like
+   the pairing simply failed. Redirect, keeping ?room= intact. */
+app.get('/controller.html', (request, response) => {
+  const qs = request.originalUrl.includes('?')
+    ? request.originalUrl.slice(request.originalUrl.indexOf('?'))
+    : '';
+  response.redirect(301, '/remote.html' + qs);
+});
+
 app.use(
   express.static(publicDirectory, {
     extensions: ['html'],

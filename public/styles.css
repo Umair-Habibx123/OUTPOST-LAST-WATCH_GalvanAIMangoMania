@@ -205,7 +205,7 @@ button {
 
 .title-screen {
     place-items: stretch;
-    background-image: linear-gradient(90deg, rgba(5, 7, 10, .92) 0%, rgba(5, 7, 10, .7) 42%, rgba(5, 7, 10, .12) 75%), linear-gradient(0deg, rgba(5, 7, 10, .85), transparent 45%), url("assets/branding/outpost-title-backdrop.webp");
+    background-image: linear-gradient(90deg, rgba(5, 7, 10, .92) 0%, rgba(5, 7, 10, .7) 42%, rgba(5, 7, 10, .12) 75%), linear-gradient(0deg, rgba(5, 7, 10, .85), transparent 45%), var(--title-bg, url("assets/branding/outpost-title-backdrop.webp"));
     background-size: cover;
     background-position: center
 }
@@ -1421,7 +1421,7 @@ button {
       rgba(3, 5, 8, .92),
       transparent 48%
     ),
-    url("assets/branding/outpost-title-backdrop.webp");
+    var(--title-bg, url("assets/branding/outpost-title-backdrop.webp"));
 
   background-size: cover;
   background-position: center;
@@ -2589,7 +2589,7 @@ and
       rgba(3, 5, 8, .92),
       transparent 48%
     ),
-    url("assets/branding/outpost-title-backdrop.webp");
+    var(--title-bg, url("assets/branding/outpost-title-backdrop.webp"));
 
   background-size: cover;
   background-position: center;
