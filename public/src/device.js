@@ -85,13 +85,21 @@ OLW.Device = (function () {
     window.dispatchEvent(new CustomEvent('olw:profilesync'));
   }
 
+  /* Never rejects. Callers treat a failure as { ok: false } and carry on, so a
+     dead network must not become an unhandled rejection — this runs on every
+     settings toggle and on every purchase, and an offline kiosk would otherwise
+     spew errors on each click. */
   async function post(path, body) {
-    const r = await fetch(path, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    return r.json().catch(() => ({ ok: false, message: 'Bad response.' }));
+    try {
+      const r = await fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return await r.json().catch(() => ({ ok: false, message: 'Bad response.' }));
+    } catch (e) {
+      return { ok: false, message: 'Network unavailable.' };
+    }
   }
 
   async function load() {
@@ -112,6 +120,8 @@ OLW.Device = (function () {
     if ('settings' in delta) cacheSettings(delta.settings);   // instant on next boot
     prefTimer = setTimeout(async () => {
       const prefs = pendingPrefs; pendingPrefs = {}; prefTimer = null;
+      // post() never rejects; a failed sync is silent because the local mirror
+      // and in-memory profile already hold the value.
       const res = await post('/api/profile', {
         deviceId: id,
         profile: {

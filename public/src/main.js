@@ -841,6 +841,45 @@ document
     });
   });
 
+/* Settings, reachable mid-raid from the bottom-right cluster.
+   Opening it pauses the battle behind the panel so you are not being overrun
+   while changing your reticle — but only in solo, since game.pause() refuses in
+   any two-player mode and freezing the wall there would punish the other
+   player. Settings apply the moment they are toggled (OLW.Settings.set calls
+   apply()), so there is nothing to commit on close. */
+(() => {
+  const b = $('settings-btn');
+  if (!b || !OLW.Settings) return;
+  let pausedByPanel = false;
+
+  /* Watch the panel itself rather than the things that close it. It can be
+     dismissed by the Back button, by Esc through closeTopModal(), or by a
+     backdrop click — and the Esc path calls stopImmediatePropagation(), so a
+     keydown listener here would never run. Observing the class covers all
+     three routes with one rule. */
+  let watching = null;
+  function watchPanel() {
+    const panel = document.querySelector('.set-overlay');
+    if (!panel || watching === panel) return;
+    watching = panel;
+    new MutationObserver(() => {
+      if (panel.classList.contains('hidden') && pausedByPanel) {
+        pausedByPanel = false;
+        game.resume();
+      }
+    }).observe(panel, { attributes: true, attributeFilter: ['class'] });
+  }
+
+  b.addEventListener('click', () => {
+    if (game.state === 'playing' && game.canPause()) {
+      game.pause();
+      pausedByPanel = game.state === 'paused';
+    }
+    OLW.Settings.open();
+    watchPanel();          // the overlay is created lazily on first open
+  });
+})();
+
 // Pause exists again for solo play. The button hides itself in two-player
 // modes, where game.pause() would refuse anyway — better to not offer it than
 // to offer a button that does nothing.

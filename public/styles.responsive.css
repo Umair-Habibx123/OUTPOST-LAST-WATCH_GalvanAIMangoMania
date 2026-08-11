@@ -267,8 +267,18 @@ body {
     ) !important;
 }
 
-.ars-quit {
+/* bottom-right cluster, right to left: pause · sound · settings · quit */
+.settings-btn {
   right: 96px !important;
+  bottom:
+    max(
+      12px,
+      env(safe-area-inset-bottom, 0px)
+    ) !important;
+}
+
+.ars-quit {
+  right: 138px !important;
   left: auto !important;
   bottom:
     max(

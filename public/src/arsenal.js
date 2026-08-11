@@ -261,6 +261,21 @@ OLW.Arsenal = (function () {
     for (const c of CONSUMABLES) A._items[c.id] = Math.min(D.profile.items[c.id] || 0, itemLimit(c) || 0);
   };
 
+  /* Weapons you can actually fire right now, in bar order. Used by the wheel so
+     a scroll never lands on a locked or empty slot. */
+  A.usableWeapons = () =>
+    WEAPONS.filter((w) => A.owned(w) && (w.starter || A.runAmmo(w.id) > 0));
+
+  A.cycleWeapon = function (dir) {
+    const list = A.usableWeapons();
+    if (list.length < 2) return false;
+    const at = list.findIndex((w) => w.id === A.current.id);
+    // wrap in both directions so one flick reaches either end
+    const next = list[((at < 0 ? 0 : at + dir) % list.length + list.length) % list.length];
+    if (!next || next.id === A.current.id) return false;
+    return A.equip(next.id);
+  };
+
   A.equip = function (id) {
     const w = byId(id);
    if (!A.owned(w)) {
@@ -1847,6 +1862,29 @@ function afterBuy() {
         A.useItem(item.id);
       }
     });
+
+    /* Mouse wheel cycles weapons, GTA style. It only walks weapons you can
+       actually fire — owned and not out of ammo — because scrolling onto a dead
+       slot mid-raid and hearing "depleted" is worse than skipping it. Wrapping
+       both ways means one flick reaches the far end of the list. */
+    let wheelAcc = 0, wheelAt = 0;
+    window.addEventListener('wheel', (event) => {
+      if (!A._game || A._game.state !== 'playing') return;
+      // let menus, shop and any scrollable rail keep their own scrolling
+      if (event.target && event.target.closest &&
+          event.target.closest('.ars-shop, .set-overlay, .ars-rail, #screens')) return;
+
+      const now = performance.now();
+      if (now - wheelAt > 260) wheelAcc = 0;   // new flick, not a continuation
+      wheelAt = now;
+      wheelAcc += event.deltaY;
+      // trackpads emit many tiny deltas; require a real notch before switching
+      if (Math.abs(wheelAcc) < 40) return;
+      const dir = wheelAcc > 0 ? 1 : -1;
+      wheelAcc = 0;
+      event.preventDefault();
+      A.cycleWeapon(dir);
+    }, { passive: false });
   }
 
   function injectCss() {
