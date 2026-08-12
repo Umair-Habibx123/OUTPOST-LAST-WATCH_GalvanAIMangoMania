@@ -996,6 +996,16 @@ OLW.Voice = (function () {
   }
 
   function evaluate() {
+    /* EVENT-DAY BUILD: microphone voice COMMANDS are disabled. The warden
+       talk-back (speak() / voiceResponse) stays fully active — only the
+       speech-recognition listener is switched off here so no mic prompt ever
+       appears and no command listening runs. The original logic is kept below,
+       commented out, so voice commands can be restored by removing this block. */
+    if (wantOn || running || starting) stop();
+    wantOn = false;
+    return;
+
+    /* eslint-disable no-unreachable */
     const enabled = !!(
       OLW.Settings &&
       typeof OLW.Settings.get === "function" &&

@@ -142,11 +142,34 @@ OLW.Device = (function () {
   }
 
   const api = {
-    id,
+    // live getter — reset() swaps the id, and readers (leaderboard, multiplayer)
+    // must see the current one, not the boot-time value.
+    get id() { return id; },
     get profile() { return profile; },
     get synced() { return synced; },
     load,
     applyServerProfile,
+
+    /* EVENT-DAY BUILD: start a brand-new participant.
+       One kiosk, many players in a queue — when a game ends we wipe to a clean
+       slate so the previous player's level/coins/unlocks never advantage the
+       next. A new device id keeps leaderboard rows attributed cleanly; the
+       economy resets to Lv 1 / sidearm only / 0 coins. Display prefs
+       (sound, reticle, shake, warden voice…) belong to the KIOSK, so they are
+       preserved across players. */
+    reset() {
+      const keepSettings = profile.settings || {};
+      id = uuid();
+      try { localStorage.setItem(ID_KEY, id); } catch (e) {}
+      writeCookie(COOKIE, id);
+      profile = defaults();
+      profile.settings = keepSettings;
+      cacheSettings(profile.settings);
+      // A fresh device has no server row; skip the fetch (it would just return
+      // defaults) and mark synced so nothing re-seeds a live run from the server.
+      synced = true;
+      window.dispatchEvent(new CustomEvent('olw:profilesync'));
+    },
 
     // non-economy prefs (settings/name/loadout/map). Economy fields are ignored.
     patch(delta) {

@@ -3,42 +3,46 @@
    display, but every coin/unlock/ammo/upgrade change is validated HERE, so a
    tampered browser can't grant itself stash, unlocks, or levels. */
 
-// minLevel gates unlocks: higher-tier weapons only become purchasable as the
-// player's level rises (not everything is available at level 1).
+// EVENT-DAY BUILD: mirrors public/src/arsenal.js. NOTE the event client now runs
+// a CLIENT-SIDE, run-scoped economy (buying happens live during the run, spending
+// coins earned that run) and does not call /api/purchase or /api/run — so this
+// server config is effectively dormant. It is kept in sync for hygiene and in case
+// the server-authoritative path is restored. Prices/level gates are deliberately
+// low so weapons open up within a couple of waves.
 export const WEAPONS = {
   sidearm:    { starter: true, unlockCost: 0, minLevel: 1 },
-  repeater:   { unlockCost: 220, ammoBase: 40, ammoPerLevel: 8, clip: 20, clipCost: 40, minLevel: 1 },
-  scattergun: { unlockCost: 400, ammoBase: 24, ammoPerLevel: 5, clip: 10, clipCost: 45, minLevel: 2 },
-  cannon:     { unlockCost: 650, ammoBase: 12, ammoPerLevel: 3, clip: 5,  clipCost: 60, minLevel: 4 },
-  mortar:     { unlockCost: 900, ammoBase: 8,  ammoPerLevel: 2, clip: 4,  clipCost: 80, minLevel: 6 },
-  tesla:      { unlockCost: 1100, ammoBase: 30, ammoPerLevel: 6, clip: 12, clipCost: 55, minLevel: 8 },
+  repeater:   { unlockCost: 70,  ammoBase: 40, ammoPerLevel: 8, clip: 20, clipCost: 18, minLevel: 1 },
+  scattergun: { unlockCost: 130, ammoBase: 24, ammoPerLevel: 5, clip: 10, clipCost: 24, minLevel: 1 },
+  cannon:     { unlockCost: 220, ammoBase: 12, ammoPerLevel: 3, clip: 5,  clipCost: 30, minLevel: 2 },
+  mortar:     { unlockCost: 320, ammoBase: 8,  ammoPerLevel: 2, clip: 4,  clipCost: 40, minLevel: 3 },
+  tesla:      { unlockCost: 420, ammoBase: 30, ammoPerLevel: 6, clip: 12, clipCost: 28, minLevel: 4 },
 };
 
 export const CONSUMABLES = {
-  supply:       { cost: 60,  base: 1, perLevel: 0.5 },
-  weaponSupply: { cost: 90,  base: 1, perLevel: 0.4 },   // reloads all owned guns
-  rally:        { cost: 120, base: 1, perLevel: 0.34 },
-  warhound:     { cost: 160, base: 1, perLevel: 0.25 },
-  dragon:       { cost: 300, base: 0, perLevel: 0.2 },
+  supply:       { cost: 30, base: 1, perLevel: 0.5 },
+  weaponSupply: { cost: 40, base: 1, perLevel: 0.4 },   // reloads all owned guns
+  rally:        { cost: 55, base: 1, perLevel: 0.34 },
+  warhound:     { cost: 75, base: 1, perLevel: 0.25 },
+  dragon:       { cost: 130, base: 0, perLevel: 0.4 },
 };
 
 export const UPGRADES = {
-  armour:     { max: 4, cost: [200, 400, 700, 1100] },
-  reload:     { max: 4, cost: [180, 360, 620, 980] },   // faster fire, all guns
-  fieldKit:   { max: 3, cost: [220, 460, 760] },        // stronger supplies/allies
-  wallMend:   { max: 3, cost: [200, 420, 700] },        // bigger perfect-wave repair
-  coinGain:   { max: 3, cost: [150, 300, 500] },
-  startCoins: { max: 3, cost: [120, 240, 400] },
+  armour:     { max: 4, cost: [80, 160, 280, 420] },
+  reload:     { max: 4, cost: [80, 160, 260, 400] },    // faster fire, all guns
+  fieldKit:   { max: 3, cost: [120, 240, 400] },        // stronger supplies/allies
+  wallMend:   { max: 3, cost: [100, 200, 340] },        // bigger perfect-wave repair
+  coinGain:   { max: 3, cost: [90, 180, 300] },
+  startCoins: { max: 3, cost: [80, 160, 260] },
 };
 
 // Per-weapon power levels — more level, more impact.
-export const WEAPON_UPGRADE = { max: 5, base: 130, growth: 1.55 };
+export const WEAPON_UPGRADE = { max: 5, base: 60, growth: 1.4 };
 export function weaponUpgradeCost(lvl) {
   return Math.round(WEAPON_UPGRADE.base * Math.pow(WEAPON_UPGRADE.growth, lvl));
 }
 
 const MAX_LEVEL = 20;
-const COIN = { kill: 8, perfect: 50, mango: 30 };
+const COIN = { kill: 14, perfect: 80, mango: 55 };
 
 // per-run anti-cheat ceilings (a great run earns a few thousand)
 const CAPS = {
@@ -58,7 +62,7 @@ export function defaults() {
 
 export function levelFromXp(xp) {
   let L = 1, need = 0;
-  while (L < MAX_LEVEL) { need += 150 * L; if ((xp || 0) < need) break; L++; }
+  while (L < MAX_LEVEL) { need += 100 * L; if ((xp || 0) < need) break; L++; }
   return L;
 }
 export function ammoCap(weaponId, level) {

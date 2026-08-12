@@ -715,6 +715,7 @@ if (voiceGuide) {
     // score" — only "Continue without saving" opts out.
    if (visible === 'over') {
   recordCompletedWatch(lastResult);
+  OLW.Device?.reset?.();   // EVENT-DAY: next player starts fresh
 }
 
     showScreen('title');
@@ -1020,6 +1021,7 @@ $('btn-retry').addEventListener(
   'click',
   () => {
     recordCompletedWatch(lastResult);
+    OLW.Device?.reset?.();   // EVENT-DAY: the next go is (usually) the next player — fresh slate
     startGameWithLoader();
   }
 );
@@ -1028,6 +1030,7 @@ $('btn-menu').addEventListener(
   'click',
   () => {
     recordCompletedWatch(lastResult);
+    OLW.Device?.reset?.();   // EVENT-DAY: next player starts fresh
     showScreen('title');
   }
 );
@@ -1069,6 +1072,7 @@ $('btn-skip-score')
       /*
        * Continue to menu immediately if desired:
        */
+      OLW.Device?.reset?.();   // EVENT-DAY: next player starts fresh
       showScreen('title');
     }
   );

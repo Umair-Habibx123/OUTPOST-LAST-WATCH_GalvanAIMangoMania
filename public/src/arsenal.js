@@ -4,6 +4,10 @@ window.OLW = window.OLW || {};
 OLW.Arsenal = (function () {
   const D = OLW.Device;
 
+  /* EVENT-DAY BUILD economy: prices + level gates are deliberately LOW so a
+     player killing guards can afford the next tier within a wave or two and the
+     run keeps escalating in fun — no "everything's locked, max wave hit, never
+     got to buy". Coins are earned AND spent live during the run (see A.buy). */
   const WEAPONS = [
     {
       id: 'sidearm', key: '1', name: 'Sidearm', tag: 'Standard', starter: true,
@@ -12,32 +16,32 @@ OLW.Arsenal = (function () {
     },
     {
       id: 'repeater', key: '2', name: 'Repeater', tag: 'Rapid',
-      unlockCost: 220, cdMul: 0.5, mode: 'single',
-      ammoBase: 40, ammoPerLevel: 8, clip: 20, clipCost: 40,
+      unlockCost: 70, cdMul: 0.5, mode: 'single',
+      ammoBase: 40, ammoPerLevel: 8, clip: 20, clipCost: 18,
       desc: 'Double fire-rate. Shreds single targets — feed it rounds.'
     },
     {
       id: 'scattergun', key: '3', name: 'Scattergun', tag: 'Spread',
-      unlockCost: 400, cdMul: 1.5, mode: 'spread', spread: 3, radius: 78,
-      ammoBase: 24, ammoPerLevel: 5, clip: 10, clipCost: 45,
+      unlockCost: 130, cdMul: 1.5, mode: 'spread', spread: 3, radius: 78,
+      ammoBase: 24, ammoPerLevel: 5, clip: 10, clipCost: 24,
       desc: 'Strikes up to 3 nearby raiders. Crowd control.'
     },
     {
       id: 'cannon', key: '4', name: 'Siege Cannon', tag: 'Heavy',
-      unlockCost: 650, cdMul: 2.3, mode: 'aoe', radius: 66, punch: 3,
-      ammoBase: 12, ammoPerLevel: 3, clip: 5, clipCost: 60,
+      unlockCost: 220, cdMul: 2.3, mode: 'aoe', radius: 66, punch: 3,
+      ammoBase: 12, ammoPerLevel: 3, clip: 5, clipCost: 30,
       desc: 'Heavy splash. One-shots armoured raiders. Rare, precious shells.'
     },
     {
       id: 'mortar', key: '5', name: 'Mortar', tag: 'Artillery',
-      unlockCost: 900, cdMul: 2.7, mode: 'aoe', radius: 104, punch: 2,
-      ammoBase: 8, ammoPerLevel: 2, clip: 4, clipCost: 80,
+      unlockCost: 320, cdMul: 2.7, mode: 'aoe', radius: 104, punch: 2,
+      ammoBase: 8, ammoPerLevel: 2, clip: 4, clipCost: 40,
       desc: 'Lobs a shell — massive blast radius, slow reload.'
     },
     {
       id: 'tesla', key: '6', name: 'Tesla Coil', tag: 'Chain',
-      unlockCost: 1100, cdMul: 1.2, mode: 'chain', chain: 4, radius: 150,
-      ammoBase: 30, ammoPerLevel: 6, clip: 12, clipCost: 55,
+      unlockCost: 420, cdMul: 1.2, mode: 'chain', chain: 4, radius: 150,
+      ammoBase: 30, ammoPerLevel: 6, clip: 12, clipCost: 28,
       desc: 'An arc leaps between nearby raiders.'
     }
   ];
@@ -45,32 +49,34 @@ OLW.Arsenal = (function () {
   const byId = (id) => WEAPONS.find((w) => w.id === id) || WEAPONS[0];
   const SIDEARM = WEAPONS[0];
 
- // NOTE: keys/costs mirror server/economy.js (server is authoritative).
+ // EVENT-DAY BUILD: run-scoped buffs, bought with coins earned during the run.
  const UPGRADES = [
-  { key: 'armour',    icon: 'armour-ic',     name: 'Warden Armour', max: 4, cost: [200, 400, 700, 1100], desc: '-10% wall damage taken per level.' },
-  { key: 'reload',    icon: 'reload-ic',     name: 'Rapid Reload',  max: 4, cost: [180, 360, 620, 980],  desc: '-6% fire cooldown per level (all weapons).' },
-  { key: 'fieldKit',  icon: 'fieldkit-ic',   name: 'Field Kit',     max: 3, cost: [220, 460, 760],       desc: '+20% supply heal & ally strength per level.' },
-  { key: 'wallMend',  icon: 'wallmender-ic', name: 'Wall Mender',   max: 3, cost: [200, 420, 700],       desc: '+4 perfect-wave repair per level.' },
-  { key: 'coinGain',  icon: 'coinrunner-ic', name: 'Coin Runners',  max: 3, cost: [150, 300, 500],       desc: '+15% coins earned per level.' },
-  { key: 'startCoins', icon: 'warchest-ic',  name: 'War Chest',     max: 3, cost: [120, 240, 400],       desc: '+80 starting run-coins per level.' }
+  { key: 'armour',    icon: 'armour-ic',     name: 'Warden Armour', max: 4, cost: [80, 160, 280, 420], desc: '-10% wall damage taken per level.' },
+  { key: 'reload',    icon: 'reload-ic',     name: 'Rapid Reload',  max: 4, cost: [80, 160, 260, 400], desc: '-6% fire cooldown per level (all weapons).' },
+  { key: 'fieldKit',  icon: 'fieldkit-ic',   name: 'Field Kit',     max: 3, cost: [120, 240, 400],     desc: '+20% supply heal & ally strength per level.' },
+  { key: 'wallMend',  icon: 'wallmender-ic', name: 'Wall Mender',   max: 3, cost: [100, 200, 340],     desc: '+4 perfect-wave repair per level.' },
+  { key: 'coinGain',  icon: 'coinrunner-ic', name: 'Coin Runners',  max: 3, cost: [90, 180, 300],      desc: '+15% coins earned per level.' },
+  { key: 'startCoins', icon: 'warchest-ic',  name: 'War Chest',     max: 3, cost: [80, 160, 260],      desc: '+80 starting run-coins per level.' }
 ];
 
-  // level-gated unlocks — mirrors server/economy.js WEAPONS.minLevel
-  const WEAPON_MINLEVEL = { sidearm: 1, repeater: 1, scattergun: 2, cannon: 4, mortar: 6, tesla: 8 };
+  // EVENT-DAY BUILD: low level gates so every weapon is reachable within a few
+  // waves (level rises live from kills — see A.addRunXp).
+  const WEAPON_MINLEVEL = { sidearm: 1, repeater: 1, scattergun: 1, cannon: 2, mortar: 3, tesla: 4 };
   const weaponMinLevel = (id) => WEAPON_MINLEVEL[id] || 1;
 
-  // per-weapon power levels (server-validated). More level = more impact.
-  const WUP = { max: 5, base: 130, growth: 1.55 };
+  // per-weapon power levels. More level = more impact. (Cheapened for event day.)
+  const WUP = { max: 5, base: 60, growth: 1.4 };
   const wupCost = (lvl) => Math.round(WUP.base * Math.pow(WUP.growth, lvl));
   const weaponLevel = (id) => (D.profile.weaponLevels && D.profile.weaponLevels[id]) || 0;
   const fieldKitMult = () => 1 + 0.2 * D.upgradeLevel('fieldKit');
 
+  // EVENT-DAY BUILD: cheaper field gear, most usable from level 1 (dragon ~Lv 4).
   const CONSUMABLES = [
-    { id: 'supply', key: 'z', name: 'Supply Line', tag: 'Repair', cost: 60, base: 1, perLevel: 0.5, desc: 'Restores +28 wall integrity instantly.' },
-    { id: 'weaponSupply', icon: 'supply', key: 'b', name: 'Weapon Supply', tag: 'Ammo', cost: 90, base: 1, perLevel: 0.4, desc: 'Reloads a full clip into every purchased weapon.' },
-    { id: 'rally', key: 'x', name: 'Backup Team', tag: 'Allies', cost: 120, base: 1, perLevel: 0.34, desc: 'Deploy two allied guards. Their life drains under combat pressure until the team is lost.' },
-    { id: 'warhound', key: 'c', name: 'War Beast', tag: 'Beast', cost: 160, base: 1, perLevel: 0.25, desc: 'Unleash an armoured war beast. It fights until its life is exhausted.' },
-    { id: 'dragon', key: 'v', name: 'Dragon Strike', tag: 'Ultimate', cost: 300, base: 0, perLevel: 0.2, desc: 'Call an ember dragon that makes repeated attack runs while its life holds.' }
+    { id: 'supply', key: 'z', name: 'Supply Line', tag: 'Repair', cost: 30, base: 1, perLevel: 0.5, desc: 'Restores +28 wall integrity instantly.' },
+    { id: 'weaponSupply', icon: 'supply', key: 'b', name: 'Weapon Supply', tag: 'Ammo', cost: 40, base: 1, perLevel: 0.4, desc: 'Reloads a full clip into every purchased weapon.' },
+    { id: 'rally', key: 'x', name: 'Backup Team', tag: 'Allies', cost: 55, base: 1, perLevel: 0.34, desc: 'Deploy two allied guards. Their life drains under combat pressure until the team is lost.' },
+    { id: 'warhound', key: 'c', name: 'War Beast', tag: 'Beast', cost: 75, base: 1, perLevel: 0.25, desc: 'Unleash an armoured war beast. It fights until its life is exhausted.' },
+    { id: 'dragon', key: 'v', name: 'Dragon Strike', tag: 'Ultimate', cost: 130, base: 0, perLevel: 0.4, desc: 'Call an ember dragon that makes repeated attack runs while its life holds.' }
   ];
 
   const conById = (id) => CONSUMABLES.find((c) => c.id === id);
@@ -96,7 +102,12 @@ OLW.Arsenal = (function () {
     return f ? `<img class="ars-ic" src="assets/art/icons/${f}" loading="lazy" decoding="async" draggable="false" alt="" onerror="this.remove()">` : '';
   };
 
-  const COIN = { kill: 8, perfect: 50, mango: 30 };
+  // EVENT-DAY BUILD: coins earned per event, and XP that raises the player's
+  // level LIVE during the run (kills → level → more weapons/gear unlock).
+  // Earnings are a little generous (esp. per guard kill) so a from-zero player
+  // earns their first weapon in the opening wave — but not instantly.
+  const COIN = { kill: 14, perfect: 80, mango: 55 };
+  const XP = { kill: 20, perfect: 50 };
 
   // Field-kit allies use LIFE instead of fixed timers. Their life drains much
   // faster than wall integrity so they remain powerful temporary tactical tools.
@@ -112,7 +123,9 @@ OLW.Arsenal = (function () {
   };
   const MAX_LEVEL = 20;
 
-  function xpToAdvance(level) { return 150 * level; }
+  // EVENT-DAY BUILD: gentler curve so a player levels up several times in one
+  // run and keeps unlocking gear (was 150 * level).
+  function xpToAdvance(level) { return 100 * level; }
 
   function levelFromXp(xp) {
     let level = 1;
@@ -207,6 +220,9 @@ OLW.Arsenal = (function () {
   };
 
   function coinMult() { return 1 + 0.15 * D.upgradeLevel('coinGain'); }
+  // EVENT-DAY BUILD: every player starts a run bone-clean — just the sidearm and
+  // ZERO coins. They earn their first weapon by killing guards (War Chest, if
+  // ever bought mid-run, still adds +80/level, but a fresh player has none).
   function startCoins() { return 80 * D.upgradeLevel('startCoins'); }
 
   A.owned = (w) => w.starter || D.isUnlocked(w.id);
@@ -256,7 +272,80 @@ OLW.Arsenal = (function () {
 };
   A.level = level;
   A.addRunCoins = (n) => { A.runCoins += Math.round(n * coinMult()); };
+  // EVENT-DAY BUILD: run XP is written straight into the (run-scoped) profile so
+  // level(), ammoCap(), itemLimit() and the weapon level-gates all rise LIVE.
+  // The device is wiped between players, so this never persists.
+  A.addRunXp = (n) => { D.profile.xp = (D.profile.xp || 0) + Math.max(0, Math.round(n)); };
   A.bump = () => { A._flash = 0.5; };
+
+  /* ---------- EVENT-DAY client-side economy ----------
+     Buying happens DURING the run and spends the coins earned this run
+     (A.runCoins). No server round-trip: it's instant, and since every player is
+     wiped on game-over, server anti-cheat is irrelevant on the kiosk. Ammo and
+     items apply straight into the live run buffers so they're usable at once. */
+  function spendCoins(n) { A.runCoins = Math.max(0, A.runCoins - n); A._flash = 0.5; }
+
+  A.buy = function (kind, id) {
+    const p = D.profile;
+    const lv = level();
+
+    if (kind === 'unlock') {
+      const w = byId(id);
+      if (!w || w.starter || D.isUnlocked(w.id)) return false;
+      if (lv < weaponMinLevel(w.id) || A.runCoins < w.unlockCost) return false;
+      spendCoins(w.unlockCost);
+      p.unlocked = Array.from(new Set([...(p.unlocked || []), w.id]));
+      // hand over one clip on unlock so the weapon is immediately usable
+      A._run[w.id] = Math.max(A._run[w.id] || 0, Math.min(ammoCap(w), w.clip));
+      return true;
+    }
+
+    if (kind === 'ammo') {
+      const w = byId(id);
+      if (!w || w.starter || !D.isUnlocked(w.id)) return false;
+      const cap = ammoCap(w);
+      const have = A.runAmmo(w.id);
+      if (have >= cap || A.runCoins < w.clipCost) return false;
+      spendCoins(w.clipCost);
+      A._run[w.id] = Math.min(cap, have + w.clip);
+      return true;
+    }
+
+    if (kind === 'item') {
+      const c = conById(id);
+      if (!c) return false;
+      const limit = itemLimit(c);
+      const have = A._items[c.id] || 0;
+      if (limit <= 0 || have >= limit || A.runCoins < c.cost) return false;
+      spendCoins(c.cost);
+      A._items[c.id] = have + 1;
+      return true;
+    }
+
+    if (kind === 'upgrade') {
+      const u = UPGRADES.find((x) => x.key === id);
+      if (!u) return false;
+      const cur = D.upgradeLevel(u.key);
+      const cost = u.cost[cur];
+      if (cur >= u.max || cost == null || A.runCoins < cost) return false;
+      spendCoins(cost);
+      p.upgrades = { ...(p.upgrades || {}), [u.key]: cur + 1 };
+      return true;
+    }
+
+    if (kind === 'weaponUpgrade') {
+      const w = byId(id);
+      if (!w || !D.isUnlocked(w.id)) return false;
+      const wl = weaponLevel(id);
+      const cost = wupCost(wl);
+      if (wl >= WUP.max || A.runCoins < cost) return false;
+      spendCoins(cost);
+      p.weaponLevels = { ...(p.weaponLevels || {}), [id]: wl + 1 };
+      return true;
+    }
+
+    return false;
+  };
 
   // seed a run's ammo/items from the (server-synced) profile
   A.seedRun = function () {
@@ -308,7 +397,7 @@ if (
 }
     A.current = w;   // loadout is persisted at run end via submitRun, not per-switch
     OLW.Audio?.hit?.();
-    renderBar();
+    paintWeaponSlots();
     return true;
   };
 
@@ -428,7 +517,7 @@ if (
         const gain = Math.min(cap - A.runAmmo(w.id), U.randInt(minGain, maxGain));
         A._run[w.id] = Math.min(cap, A.runAmmo(w.id) + gain);
         ammoMessage = ` · ${w.name.toUpperCase()} +${gain}`;
-        renderBar();
+        paintWeaponSlots();
       }
 
       g.addFloater(
@@ -452,7 +541,7 @@ if (
         total += gain;
         reloaded += 1;
       }
-      if (reloaded) renderBar();
+      if (reloaded) paintWeaponSlots();
       g.addFloater(
         CX, CY - C.WALL_RADIUS_Y - 26,
         total > 0 ? `WEAPON SUPPLY · +${total} AMMO` : 'WEAPON SUPPLY · ALL FULL',
@@ -500,7 +589,7 @@ if (
     }
 
     A._lastIntegrity = g.integrity;
-    renderItemBar();
+    paintItemSlots();
     return true;
   };
 
@@ -1183,7 +1272,20 @@ if (
     P.reset = function () {
       origReset.call(this);
       A._game = this;
+      // EVENT-DAY BUILD: every run starts from a clean economy, independent of
+      // whatever the device last synced from the server — so the FIRST player
+      // after a page load is as fresh as everyone after them. Level, unlocks,
+      // ammo, items and buffs all reset; only display prefs live on elsewhere.
+      const p = D.profile;
+      p.xp = 0;
+      p.unlocked = ['sidearm'];
+      p.ammo = {};
+      p.items = {};
+      p.upgrades = {};
+      p.weaponLevels = {};
+      p.loadout = 'sidearm';
       A.runCoins = startCoins();
+      A._lastLevel = level();   // baseline (1) for live level-up callouts
       A._active = { rally: [], warhound: [], dragon: [] };
       A._lastIntegrity = this.integrity;
       A._runStarted = performance.now();
@@ -1203,7 +1305,7 @@ if (
       // the shared weapon runs dry — for whoever pulls the trigger).
       if (ready && !A.current.starter && A.runAmmo(A.current.id) <= 0) {
         A.current = SIDEARM;
-        renderBar();
+        paintWeaponSlots();
       }
 
       const result = origStrikeAt.call(this, ax, ay, slot);
@@ -1233,9 +1335,18 @@ if (
 
       if (this.state === 'playing') {
         const killDelta = this.kills - killsBefore;
-        if (killDelta > 0) A.addRunCoins(killDelta * COIN.kill);
-        if (this.perfectWaves > perfectBefore) A.addRunCoins((this.perfectWaves - perfectBefore) * COIN.perfect);
+        const perfectDelta = this.perfectWaves - perfectBefore;
+        if (killDelta > 0) { A.addRunCoins(killDelta * COIN.kill); A.addRunXp(killDelta * XP.kill); }
+        if (perfectDelta > 0) { A.addRunCoins(perfectDelta * COIN.perfect); A.addRunXp(perfectDelta * XP.perfect); }
         if (this.mangoGrabbed > mangoBefore) A.addRunCoins((this.mangoGrabbed - mangoBefore) * COIN.mango);
+        // live level-ups: flash the HUD + a short warden callout, and the rails
+        // repaint (below) so freshly unlocked weapons switch to a buy price.
+        const nowLevel = level();
+        if (nowLevel > (A._lastLevel || 1)) {
+          A._lastLevel = nowLevel;
+          A._flash = 0.6;
+          OLW.Voice?.speak?.(`Level ${nowLevel}. New gear available.`);
+        }
         if (A._flash > 0) A._flash = Math.max(0, A._flash - dt);
         for (const b of A._blasts) b.life -= dt;
         if (A._blasts.length) A._blasts = A._blasts.filter((b) => b.life > 0);
@@ -1284,26 +1395,12 @@ if (
   };
 
   A.bankRun = function (game) {
-    // Report the run to the server, which credits coins/xp (capped) and records
-    // remaining ammo/items. Fire-and-forget: the profile updates on response and
-    // the olw:profilesync listener refreshes the UI.
-    const ammo = {};
-    for (const w of WEAPONS) if (!w.starter) ammo[w.id] = A._run[w.id] || 0;
-    const items = {};
-    for (const c of CONSUMABLES) items[c.id] = A._items[c.id] || 0;
-
-    OLW.Device.submitRun({
-      score: game.score || 0,
-      time: game.time || 0,
-      kills: game.kills || 0,
-      waves: game.director ? game.director.wave : 0,
-      perfectWaves: game.perfectWaves || 0,
-      mango: game.mangoGrabbed || 0,
-      ammo,
-      items,
-      loadout: A.current.id,
-    });
-
+    // EVENT-DAY BUILD: nothing to bank. The economy is client-side and
+    // run-scoped, and the device is wiped between players on game-over, so there
+    // is no persistent stash to credit. The leaderboard score is recorded
+    // separately (see main.js recordCompletedWatch), independent of economy.
+    // Submitting a run here would only write to a device that is about to be
+    // discarded — and applyServerProfile could clobber the fresh reset — so skip.
     A.runCoins = 0;
     hideHud();
   };
@@ -1313,6 +1410,7 @@ if (
   let elItems;
   let elShop;
   let elQuit;
+  let elBuy;
 
   function el(tag, cls, html) {
     const node = document.createElement(tag);
@@ -1345,55 +1443,144 @@ if (
     elQuit.onclick = quitToMenu;
     stage.appendChild(elQuit);
 
+    // In-run "full armory" — ammo fills, weapon level-ups and permanent upgrades
+    // that don't fit the one-tap rails. Opens without pausing (there is no pause).
+    elBuy = el('button', 'ghost-btn ars-buy-open hidden', 'ARMORY ⚒');
+    elBuy.title = 'Open the armory — fills & upgrades (the raid keeps coming)';
+    elBuy.onclick = openShop;
+    stage.appendChild(elBuy);
+
     renderBar();
     renderItemBar();
-    injectLegacyShopButton();
+  }
+
+  /* ---------- EVENT-DAY quick-buy rails ----------
+     Both rails show EVERY weapon (left) and EVERY item (right) at all times. A
+     single tap does the sensible next thing:
+       weapon: owned+loaded → wield · owned+empty → buy a clip & wield ·
+               not owned (level ok) → buy & wield · level-locked → refused
+       item:   have some → use · none (level ok) → buy one · locked → refused
+     Slots are built ONCE; paint*Slots() updates badges/affordability every frame
+     (cheap: text + class on ~11 nodes) so prices, ammo and level gates stay live. */
+
+  function weaponClickAction(w) {
+    if (w.starter) { A.equip(w.id); return; }
+    if (A.owned(w)) {
+      if (A.runAmmo(w.id) > 0) { A.equip(w.id); return; }
+      if (buyOne('ammo', w.id, () => OLW.Audio?.hit?.())) A.equip(w.id);   // empty → restock & wield
+      return;
+    }
+    if (level() < weaponMinLevel(w.id)) {
+      A.bump(); OLW.Audio?.strike?.();
+      OLW.Voice?.speak?.(`${w.name} locked. Reach level ${weaponMinLevel(w.id)}.`);
+      return;
+    }
+    if (buyOne('unlock', w.id)) A.equip(w.id);
+  }
+
+  function itemClickAction(c) {
+    const have = A._items[c.id] || 0;
+    if (have > 0) { A.useItem(c.id); return; }
+    if (itemLimit(c) <= 0) { A.bump(); OLW.Audio?.strike?.(); return; }   // level-locked
+    buyOne('item', c.id, () => OLW.Audio?.hit?.());
   }
 
   function renderBar() {
     if (!elBar) return;
     elBar.innerHTML = '';
-
     for (const w of WEAPONS) {
-      if (!A.owned(w)) continue;
-
-      const current = A.current.id === w.id;
-      const ammo = w.starter ? '∞' : A.runAmmo(w.id);
-      const empty = !w.starter && A.runAmmo(w.id) <= 0;
-      const slot = el('button', `ars-w${current ? ' cur' : ''}${empty ? ' empty' : ''}`);
-
+      const slot = el('button', 'ars-w');
+      slot.dataset.wid = w.id;
       slot.innerHTML =
         `<span class="ars-w-key">${w.key}</span>` +
         iconImg(w.id, 'ars-w-ic') +
-        `<span class="ars-w-body"><small>${w.starter ? '∞' : ammo}</small></span>` +
+        `<span class="ars-w-body"><small></small></span>` +
         `<span class="ars-slot-name">${w.name}</span>`;
-
       slot.title = w.desc;
-      slot.onclick = () => A.equip(w.id);
+      slot.onclick = () => weaponClickAction(w);
       elBar.appendChild(slot);
+    }
+    paintWeaponSlots();
+  }
+
+  function paintWeaponSlots() {
+    if (!elBar) return;
+    const lv = level();
+    for (const node of elBar.children) {
+      const w = byId(node.dataset.wid);
+      const small = node.querySelector('.ars-w-body small');
+      let cls = 'ars-w', text = '';
+      const owned = A.owned(w);
+      if (owned && (w.starter || A.runAmmo(w.id) > 0) && A.current.id === w.id) cls += ' cur';
+      if (w.starter) {
+        text = '∞';
+      } else if (owned) {
+        const ammo = A.runAmmo(w.id);
+        if (ammo > 0) { text = `${ammo}`; }
+        else { cls += ' empty'; text = `◎${w.clipCost}`; if (A.runCoins < w.clipCost) cls += ' unaff'; }
+      } else if (lv < weaponMinLevel(w.id)) {
+        cls += ' locked'; text = `L${weaponMinLevel(w.id)}`;
+      } else {
+        cls += ' tobuy'; text = `◎${w.unlockCost}`; if (A.runCoins < w.unlockCost) cls += ' unaff';
+      }
+      node.className = cls;
+      if (small) small.textContent = text;
     }
   }
 
   function renderItemBar() {
     if (!elItems) return;
     elItems.innerHTML = '';
-
     for (const c of CONSUMABLES) {
-      const count = A._items[c.id] || 0;
-      if (count <= 0) continue;
-
       const slot = el('button', 'ars-item');
+      slot.dataset.cid = c.id;
       slot.innerHTML =
         `<span class="ars-item-key">${c.key.toUpperCase()}</span>` +
         iconImg(c.icon || c.id, 'ars-item-ic') +
-        `<span class="ars-item-body"><small>×${count}</small></span>` +
+        `<span class="ars-item-body"><small></small></span>` +
         `<span class="ars-slot-name">${c.name}</span>`;
       slot.title = c.desc;
-      slot.onclick = () => A.useItem(c.id);
+      slot.onclick = () => itemClickAction(c);
       elItems.appendChild(slot);
     }
+    paintItemSlots();
+  }
 
-    elItems.classList.toggle('is-empty', elItems.children.length === 0);
+  function paintItemSlots() {
+    if (!elItems) return;
+    for (const node of elItems.children) {
+      const c = conById(node.dataset.cid);
+      const small = node.querySelector('.ars-item-body small');
+      const have = A._items[c.id] || 0;
+      const limit = itemLimit(c);
+      let cls = 'ars-item', text = '';
+      if (have > 0) {
+        text = `×${have}`;
+      } else if (limit <= 0) {
+        cls += ' locked'; text = `L${Math.ceil(1 / c.perLevel) + 1}`;
+      } else {
+        cls += ' tobuy'; text = `◎${c.cost}`; if (A.runCoins < c.cost) cls += ' unaff';
+      }
+      node.className = cls;
+      if (small) small.textContent = text;
+    }
+  }
+
+  // One-tap buy with instant feedback; false when it can't be afforded/allowed.
+  function buyOne(kind, id, sound) {
+    if (!A.buy(kind, id)) { A.bump(); OLW.Audio?.strike?.(); return false; }
+    (sound || OLW.Audio?.mango || function () {})();
+    afterBuy();
+    return true;
+  }
+
+  // Repeat a buy until it stops succeeding (used by the armory "Fill" button).
+  function buyFill(kind, id, sound) {
+    let n = 0;
+    while (A.buy(kind, id)) n++;
+    if (!n) { A.bump(); OLW.Audio?.strike?.(); return; }
+    (sound || OLW.Audio?.mango || function () {})();
+    afterBuy();
   }
 
   function updateHud(game) {
@@ -1403,32 +1590,23 @@ if (
     elCoins.classList.toggle('hidden', !show);
     elBar.classList.toggle('hidden', !show);
     elQuit.classList.toggle('hidden', !show);
-    elItems.classList.toggle('hidden', !show || elItems.children.length === 0);
+    elItems.classList.toggle('hidden', !show);
+    if (elBuy) elBuy.classList.toggle('hidden', !show);
     if (!show) return;
 
     document.getElementById('ars-coin-val').textContent = A.runCoins;
     document.getElementById('ars-lv').textContent = `Lv ${level()}`;
     elCoins.classList.toggle('flash', A._flash > 0);
 
-    const children = elBar.children;
-    let index = 0;
-
-    for (const w of WEAPONS) {
-      if (!A.owned(w)) continue;
-      const node = children[index++];
-      if (!node) continue;
-
-      node.classList.toggle('cur', A.current.id === w.id);
-      const empty = !w.starter && A.runAmmo(w.id) <= 0;
-      node.classList.toggle('empty', empty);
-
-      const small = node.querySelector('.ars-w-body small');
-      if (small && !w.starter) small.textContent = `${A.runAmmo(w.id)}`;
-    }
+    paintWeaponSlots();
+    paintItemSlots();
   }
 
   function hideHud() {
-    [elCoins, elBar, elItems, elQuit].forEach((node) => node?.classList.add('hidden'));
+    // EVENT-DAY: also close the in-run armory so it can't linger over the
+    // game-over screen if the wall fell while it was open.
+    elShop?.classList.add('hidden');
+    [elCoins, elBar, elItems, elQuit, elBuy].forEach((node) => node?.classList.add('hidden'));
   }
 
   function doQuit() {
@@ -1475,17 +1653,9 @@ if (
   }
 
   function injectLegacyShopButton() {
-    // Keep compatibility with the old title screen. If your new title has
-    // #btn-armory-launch, this legacy button is not created.
-    if (document.getElementById('btn-armory-launch')) return;
-
-    const actions = document.querySelector('.title-actions');
-    if (!actions || document.getElementById('btn-armory')) return;
-
-    const button = el('button', 'secondary-btn', `Armory <span id="armory-stash">◎ ${D.profile.stash}</span>`);
-    button.id = 'btn-armory';
-    button.onclick = openShop;
-    actions.appendChild(button);
+    // EVENT-DAY BUILD: no pre-game Armory. The title-screen shop (legacy or
+    // #btn-armory-launch) is intentionally NOT created — all buying happens
+    // in-run from the side rails. Left as a no-op so callers stay valid.
   }
 
   function bindExternalArmoryButton() {
@@ -1515,139 +1685,10 @@ if (
       </div>`;
   }
 
-  // ---------- optimistic Armory purchases ----------
-  // The UI changes instantly; server validation runs serially in the background.
-  // Intermediate server responses are intentionally not applied because they
-  // would overwrite newer optimistic clicks. When the queue drains, the last
-  // authoritative server profile reconciles everything.
-  const purchaseQueue = [];
-  let purchaseQueueRunning = false;
-
-  function optimisticPurchase(kind, id) {
-    const p = D.profile;
-
-    if (kind === 'unlock') {
-      const w = byId(id);
-      if (!w || w.starter || D.isUnlocked(w.id) || level() < weaponMinLevel(w.id) || p.stash < w.unlockCost) return false;
-      p.stash -= w.unlockCost;
-      p.unlocked = Array.from(new Set([...(p.unlocked || []), w.id]));
-      return true;
-    }
-
-    if (kind === 'ammo') {
-      const w = byId(id);
-      if (!w || w.starter || !D.isUnlocked(w.id)) return false;
-      const cap = ammoCap(w);
-      const have = p.ammo[w.id] || 0;
-      if (have >= cap || p.stash < w.clipCost) return false;
-      p.stash -= w.clipCost;
-      p.ammo = { ...(p.ammo || {}), [w.id]: Math.min(cap, have + w.clip) };
-      return true;
-    }
-
-    if (kind === 'item') {
-      const item = conById(id);
-      if (!item) return false;
-      const limit = itemLimit(item);
-      const have = p.items[item.id] || 0;
-      if (limit <= 0 || have >= limit || p.stash < item.cost) return false;
-      p.stash -= item.cost;
-      p.items = { ...(p.items || {}), [item.id]: have + 1 };
-      return true;
-    }
-
-    if (kind === 'upgrade') {
-      const u = UPGRADES.find((x) => x.key === id);
-      if (!u) return false;
-      const current = D.upgradeLevel(u.key);
-      const cost = u.cost[current];
-      if (current >= u.max || cost == null || p.stash < cost) return false;
-      p.stash -= cost;
-      p.upgrades = { ...(p.upgrades || {}), [u.key]: current + 1 };
-      return true;
-    }
-
-    if (kind === 'weaponUpgrade') {
-      const w = byId(id);
-      if (!w || !D.isUnlocked(w.id)) return false;
-      const lvl = (p.weaponLevels && p.weaponLevels[id]) || 0;
-      const cost = wupCost(lvl);
-      if (lvl >= WUP.max || p.stash < cost) return false;
-      p.stash -= cost;
-      p.weaponLevels = { ...(p.weaponLevels || {}), [id]: lvl + 1 };
-      return true;
-    }
-
-    return false;
-  }
-
-  async function processPurchaseQueue() {
-    if (purchaseQueueRunning) return;
-    purchaseQueueRunning = true;
-    let lastServerProfile = null;
-
-    try {
-      while (purchaseQueue.length) {
-        const job = purchaseQueue[0];
-        const res = await D.purchase(job.kind, job.id, { applyProfile: false });
-
-        if (!res || !res.ok) {
-          // Server remains authoritative. One rejected operation causes a clean
-          // reconciliation so the client cannot drift from Neon.
-          purchaseQueue.length = 0;
-          A.bump();
-          OLW.Audio?.strike?.();
-          await D.load();
-          return;
-        }
-
-        lastServerProfile = res.profile || lastServerProfile;
-        purchaseQueue.shift();
-      }
-
-      if (lastServerProfile) D.applyServerProfile(lastServerProfile);
-    } catch (error) {
-      console.error('Armory purchase sync failed:', error);
-      purchaseQueue.length = 0;
-      A.bump();
-      OLW.Audio?.strike?.();
-      await D.load();
-    } finally {
-      purchaseQueueRunning = false;
-    }
-  }
-
-  function queueOptimisticPurchase(kind, id, sound) {
-    if (!optimisticPurchase(kind, id)) {
-      A.bump();
-      OLW.Audio?.strike?.();
-      return;
-    }
-
-    // Immediate local feedback — no waiting for network latency.
-    (sound || OLW.Audio?.mango || function () {})();
-    window.dispatchEvent(new CustomEvent('olw:profilesync', { detail: { optimistic: true } }));
-    purchaseQueue.push({ kind, id });
-    processPurchaseQueue();
-  }
-
-  // Repeat a purchase optimistically until it can't succeed (full / unaffordable),
-  // queueing each step so the server applies the same count. Used by "Fill".
-  function queueFillPurchase(kind, id, sound) {
-    let count = 0;
-    while (optimisticPurchase(kind, id)) {
-      purchaseQueue.push({ kind, id });
-      count++;
-    }
-    if (!count) {
-      A.bump();
-      OLW.Audio?.strike?.();
-      return;
-    }
-    (sound || OLW.Audio?.mango || function () {})();
-    window.dispatchEvent(new CustomEvent('olw:profilesync', { detail: { optimistic: true } }));
-    processPurchaseQueue();
-  }
+  // EVENT-DAY BUILD: the old server-validated "optimistic purchase" queue is
+  // gone. All buying is now client-side and run-scoped through A.buy() +
+  // buyOne()/buyFill() (defined with the quick-buy rails above), spending the
+  // coins earned this run. No /api/purchase round-trips, no stash.
 
   function renderShop() {
     const p = D.profile;
@@ -1671,7 +1712,7 @@ if (
             icon
           );
         }
-        const can = p.stash >= w.unlockCost;
+        const can = A.runCoins >= w.unlockCost;
         return row(
           `${w.name} <em>${w.tag}</em>`,
           `${w.desc} <i>One-time unlock.</i>`,
@@ -1681,11 +1722,11 @@ if (
       }
 
       const cap = ammoCap(w);
-      const have = p.ammo[w.id] || 0;
+      const have = A.runAmmo(w.id);
       const full = have >= cap;
-      const canAmmo = !full && p.stash >= w.clipCost;
+      const canAmmo = !full && A.runCoins >= w.clipCost;
       const wl = weaponLevel(w.id);
-      const canUp = wl < WUP.max && p.stash >= wupCost(wl);
+      const canUp = wl < WUP.max && A.runCoins >= wupCost(wl);
       const ammoBar = `<div class="ars-ammo"><div class="ars-ammo-fill" style="width:${Math.min(100, (have / cap) * 100)}%"></div></div><small>${have}/${cap} rounds${wl > 0 ? ` · Lv ${wl}` : ''}</small>`;
       const clipsToFull = Math.max(1, Math.ceil((cap - have) / w.clip));
       const fillCost = clipsToFull * w.clipCost;
@@ -1711,7 +1752,7 @@ if (
     const consumableRows = CONSUMABLES.map((c) => {
       const icon = iconImg(c.icon || c.id);
       const limit = itemLimit(c);
-      const have = p.items[c.id] || 0;
+      const have = A._items[c.id] || 0;
 
       if (limit <= 0) {
         const neededLevel = Math.ceil(1 / c.perLevel) + 1;
@@ -1724,7 +1765,7 @@ if (
       }
 
       const full = have >= limit;
-      const can = !full && p.stash >= c.cost;
+      const can = !full && A.runCoins >= c.cost;
 
       return row(
         `${c.name} <em>${c.tag}</em>`,
@@ -1740,7 +1781,7 @@ if (
       const currentLevel = D.upgradeLevel(u.key);
       const cost = upCost(u);
       const maxed = currentLevel >= u.max;
-      const can = !maxed && p.stash >= cost;
+      const can = !maxed && A.runCoins >= cost;
 
       return row(
   `${u.name} <em>Lv ${currentLevel}/${u.max}</em>`,
@@ -1761,8 +1802,8 @@ if (
 
           <span class="ars-shop-right">
             <span class="ars-shop-stash">
-              <small>STASH</small>
-              <b>◎ ${p.stash}</b>
+              <small>COINS</small>
+              <b>◎ ${A.runCoins}</b>
             </span>
             <button class="ars-shop-x" aria-label="Close armory" title="Close">✕</button>
           </span>
@@ -1774,7 +1815,7 @@ if (
           <span class="ars-lvxp">${prog.into}/${prog.need} XP</span>
         </div>
 
-        <p class="ars-shop-sub">Unlock weapons once, stock ammunition, and prepare field equipment before the next watch.</p>
+        <p class="ars-shop-sub">Spend the coins you earn this run. The raid does <b>not</b> pause — buy between waves. Quick-buy weapons &amp; gear on the side rails; fills &amp; upgrades here.</p>
 
         <div class="ars-shop-scroll">
           <h4>Weapons &amp; Ammo</h4>
@@ -1793,14 +1834,14 @@ if (
     elShop.querySelector('.ars-shop-close').onclick = closeShop;
     elShop.querySelector('.ars-shop-x').onclick = closeShop;
 
-    // Instant optimistic UI; server validation continues in the background.
+    // EVENT-DAY BUILD: instant client-side buys spending this run's coins.
     const buy = (button, kind, id, sound) => {
       if (button.classList.contains('dis')) return;
-      queueOptimisticPurchase(kind, id, sound);
+      buyOne(kind, id, sound);
     };
     elShop.querySelectorAll('[data-unlock]').forEach((b) => { b.onclick = () => buy(b, 'unlock', b.dataset.unlock); });
     elShop.querySelectorAll('[data-ammo]').forEach((b) => { b.onclick = () => buy(b, 'ammo', b.dataset.ammo, () => OLW.Audio?.hit?.()); });
-    elShop.querySelectorAll('[data-fill]').forEach((b) => { b.onclick = () => { if (b.classList.contains('dis')) return; queueFillPurchase('ammo', b.dataset.fill, () => OLW.Audio?.hit?.()); }; });
+    elShop.querySelectorAll('[data-fill]').forEach((b) => { b.onclick = () => { if (b.classList.contains('dis')) return; buyFill('ammo', b.dataset.fill, () => OLW.Audio?.hit?.()); }; });
     elShop.querySelectorAll('[data-wup]').forEach((b) => { b.onclick = () => buy(b, 'weaponUpgrade', b.dataset.wup); });
     elShop.querySelectorAll('[data-item]').forEach((b) => { b.onclick = () => buy(b, 'item', b.dataset.item, () => OLW.Audio?.hit?.()); });
     elShop.querySelectorAll('[data-up]').forEach((b) => { b.onclick = () => buy(b, 'upgrade', b.dataset.up); });
@@ -1821,21 +1862,19 @@ function renderShopPreserveScroll() {
   });
 }
 
-function afterBuy() {
-    const oldScroller = elShop?.querySelector('.ars-shop-scroll');
-    const oldScrollTop = oldScroller ? oldScroller.scrollTop : 0;
-    refreshStashLabels();
-    renderShop();
-    renderBar();
-    requestAnimationFrame(() => {
-      const newScroller = elShop?.querySelector('.ars-shop-scroll');
-      if (newScroller) newScroller.scrollTop = oldScrollTop;
-    });
+// EVENT-DAY BUILD: after any buy, repaint the always-visible rails and the coin
+  // counter, and (if open) the full armory panel — all from live run state.
+  function afterBuy() {
+    paintWeaponSlots();
+    paintItemSlots();
+    const cv = document.getElementById('ars-coin-val');
+    if (cv) cv.textContent = A.runCoins;
+    if (elShop && !elShop.classList.contains('hidden')) renderShopPreserveScroll();
   }
 
   function refreshStashLabels() {
-    const legacy = document.getElementById('armory-stash');
-    if (legacy) legacy.textContent = `◎ ${D.profile.stash}`;
+    // EVENT-DAY BUILD: no persistent stash / legacy label anymore — no-op kept
+    // so existing callers (profilesync, closeShop) stay valid.
   }
 
   function openShop() {
@@ -1931,7 +1970,21 @@ function afterBuy() {
       .ars-rail-right .ars-slot-name{right:calc(100% + 9px)}
       .ars-item .ars-slot-name{border-color:#6b5a78}
       .ars-w:hover .ars-slot-name,.ars-item:hover .ars-slot-name{opacity:1}
+
+      /* EVENT-DAY quick-buy rail states. tobuy = affordable purchase (green tint);
+         unaff = shown but can't afford yet (dim, amber price); locked = level gate. */
+      .ars-w.tobuy,.ars-item.tobuy{border-color:#6f8a4a;box-shadow:0 0 10px rgba(143,174,92,.28)}
+      .ars-w.tobuy .ars-w-body small,.ars-item.tobuy .ars-item-body small{color:#0d1a07;background:linear-gradient(180deg,#bfe08a,#8fae5c);border-color:#6f8a4a}
+      .ars-w.unaff,.ars-item.unaff{opacity:.5}
+      .ars-w.unaff .ars-w-body small,.ars-item.unaff .ars-item-body small{color:#e9c07a;background:rgba(10,13,18,.96);border-color:#6a5a3a}
+      .ars-w.locked,.ars-item.locked{opacity:.4;filter:grayscale(.5)}
+      .ars-w.locked .ars-w-body small,.ars-item.locked .ars-item-body small{color:#c9c1b0;background:rgba(10,13,18,.96);border-color:#4a4638}
+
       .ars-quit{right:96px!important;left:auto;bottom:15px;padding:0 12px;z-index:8}
+      /* Stacked just ABOVE the QUIT button on the bottom-RIGHT, clear of the
+         wall-integrity readout that lives bottom-left (.hud-bottom). */
+      .ars-buy-open{right:96px!important;left:auto;bottom:56px;padding:0 12px;z-index:8;color:var(--gold,#f5c36b);border-color:#6a5a3a}
+      .ars-buy-open:hover{border-color:var(--amber,#e8a13a)}
 
       .ars-shop{position:absolute;inset:0;z-index:70;display:grid;place-items:center;padding:clamp(8px,2vmin,22px);background:rgba(4,6,9,.88);backdrop-filter:blur(9px)}
       .ars-shop-panel{width:min(760px,96vw);height:min(760px,94dvh);max-height:calc(100dvh - 18px);display:flex;flex-direction:column;overflow:hidden;padding:clamp(15px,2.5vmin,28px);border:1px solid rgba(255,255,255,.11);border-radius:7px;background:linear-gradient(155deg,rgba(34,39,47,.99),rgba(11,14,19,.995));box-shadow:0 30px 100px rgba(0,0,0,.7)}
