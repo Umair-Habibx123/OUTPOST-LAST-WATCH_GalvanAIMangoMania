@@ -115,6 +115,7 @@ window.OLW = window.OLW || {};
       ctx.save();
       ctx.translate(this.x, this.y);
       drawSilhouette(ctx, this, walk);
+      healthBar(ctx, this);
       ctx.restore();
     }
   }
@@ -181,6 +182,42 @@ window.OLW = window.OLW || {};
     ctx.restore();
   }
 
+  /* HEALTH BAR for the raiders that actually take a beating.
+     The old code drew hp pips, but only inside the hand-drawn fallback art —
+     every atlas branch returns before reaching it, so once real sprites landed
+     the pips silently stopped appearing on the very enemies that needed them.
+     This draws from Raider.draw() instead, so it shows on every art path.
+
+     Threshold is maxHp, not type: that covers the human brute (5) and the
+     creature brute (8) while leaving the one- and two-hit fodder clean, and it
+     keeps working if the stat table is retuned. */
+  function healthBar(ctx, rd) {
+    if (!rd.alive || rd.maxHp < 4) return;
+    const r = rd.r;
+    const w = Math.max(30, r * 2.6), h = 5;
+    const y = -r * 2.05;
+    const pct = U.clamp(rd.hp / rd.maxHp, 0, 1);
+    // creature brutes read green, human brutes red — same colours as their aura
+    const full = rd.creature ? '#8ad660' : '#e03a28';
+    ctx.save();
+    ctx.fillStyle = 'rgba(4,6,9,.8)';
+    ctx.fillRect(-w / 2 - 1, y - 1, w + 2, h + 2);
+    ctx.fillStyle = pct > 0.5 ? full : (pct > 0.25 ? '#e8a13a' : '#c14a34');
+    ctx.fillRect(-w / 2, y, w * pct, h);
+    ctx.strokeStyle = 'rgba(255,255,255,.22)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(-w / 2 - 1, y - 1, w + 2, h + 2);
+    // notches so you can read how many hits are left, not just a fraction
+    if (rd.maxHp <= 10) {
+      ctx.strokeStyle = 'rgba(4,6,9,.75)';
+      for (let i = 1; i < rd.maxHp; i++) {
+        const x = -w / 2 + (w * i) / rd.maxHp;
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + h); ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
   function drawSilhouette(ctx, rd, walk) {
     const r = rd.r;
     const flash = rd.hitFlash > 0;
@@ -232,13 +269,8 @@ window.OLW = window.OLW || {};
       ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(img, frame * cw, row * ch, cw, ch, -size / 2, -size * 0.80, size, size);
       ctx.restore();
-      if (rd.type === 'tough' && rd.alive) {
-        const pipW = r * 0.42;
-        for (let i = 0; i < rd.maxHp; i++) {
-          ctx.fillStyle = i < rd.hp ? COL.raiderToughRim : 'rgba(255,255,255,.16)';
-          ctx.fillRect((i - 1.5) * (pipW + 2), -r * 2.65, pipW, 3);
-        }
-      }
+      // pips removed: healthBar() in draw() now covers every art path, and
+      // keeping these stacked a second indicator above the same brute
       return;
     }
 
@@ -294,13 +326,8 @@ window.OLW = window.OLW || {};
     ctx.arc(rx, ry - r * 0.35, r * 0.55, toC - 1.0, toC + 1.0);
     ctx.stroke();
 
-    // tough raiders: heavier frame + hp pips
-    if (rd.type === 'tough' && rd.alive) {
-      for (let i = 0; i < rd.maxHp; i++) {
-        ctx.fillStyle = i < rd.hp ? COL.raiderToughRim : 'rgba(255,255,255,0.14)';
-        ctx.fillRect(-r * 0.6 + i * (r * 0.55), -r * 1.75, r * 0.4, 3.5);
-      }
-    }
+    // hp pips used to live here, but healthBar() in draw() now covers every art
+    // path — keeping both drew two stacked indicators over the same raider
   }
 
   /* ---------------- Mango supply cart ---------------- */

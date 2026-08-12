@@ -219,6 +219,11 @@ setPlayer2Away(away) {
 }
 
 setPlayer2Aim(x, y) {
+  // No second warden outside co-op. Without this guard anything that calls a
+  // P2 method — a stray backup tick, a late packet from a versus attacker —
+  // lights up the P2 reticle and fires bolts from a warden that is not on the
+  // field, which reads as the outpost shooting by itself.
+  if (!this.p2Present()) return;
   // real input means somebody is back on that post
   this.player2Away = false;
   // store the networked TARGET; update() glides the rendered reticle toward it
@@ -232,6 +237,7 @@ setPlayer2Aim(x, y) {
 }
 
 strikePlayer2(x, y) {
+  if (!this.p2Present()) return false;      // no second warden, no second shot
   this.setPlayer2Aim(x, y);
   // fire exactly where the phone aimed — bypass the smoothing lag for the shot
   this.player2Aim.x = this.player2Aim.tx;
@@ -488,6 +494,7 @@ strikeAt(ax, ay, playerSlot) {
     }
 
     usePlayer2Volley() {
+  if (!this.p2Present()) return false;
   if (
     this.state !== 'playing' ||
     this.player2VolleyCharge <

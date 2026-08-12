@@ -597,10 +597,33 @@
     positionAim(event.clientX, event.clientY);
   });
 
+  /* HOLD TO KEEP FIRING.
+     Tapping once per shot is fine on a mouse but miserable on a phone during a
+     raid. Holding the button repeats at the weapon's own rate — the host still
+     enforces the real cooldown on every shot, so this cannot fire faster than
+     clicking could; it just saves the player's thumb. Released on pointerup,
+     pointercancel and blur so a shot can never latch on. */
+  let fireHold = null;
+  function startFiring() {
+    sendStrike();
+    stopFiring();
+    fireHold = setInterval(() => {
+      if (!matchActive) { stopFiring(); return; }
+      sendStrike();
+    }, 90);
+  }
+  function stopFiring() {
+    if (fireHold) { clearInterval(fireHold); fireHold = null; }
+  }
+
   fireButton.addEventListener('pointerdown', (event) => {
     event.preventDefault();
-    sendStrike();
+    try { fireButton.setPointerCapture(event.pointerId); } catch (e) {}
+    startFiring();
   });
+  ['pointerup', 'pointercancel', 'pointerleave', 'lostpointercapture']
+    .forEach((ev) => fireButton.addEventListener(ev, stopFiring));
+  window.addEventListener('blur', stopFiring);
 
   // keyboard: Space fires (device controls, e.g. a laptop as the controller)
   window.addEventListener('keydown', (event) => {

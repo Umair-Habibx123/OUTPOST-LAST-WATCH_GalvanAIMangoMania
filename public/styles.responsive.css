@@ -241,12 +241,22 @@ body {
   display: none;
 }
 
+/* volley sits on the right under the arsenal rail; the wall gauge owns the left */
 .volley-wrap {
+  right: clamp(6px, 1.4vmin, 14px) !important;
+  left: auto !important;
+  bottom:
+    calc(56px + max(0px, env(safe-area-inset-bottom, 0px))) !important;
+}
+
+.hud-bottom {
+  left: clamp(10px, 1.8vmin, 16px) !important;
   bottom:
     max(
-      14px,
+      12px,
       env(safe-area-inset-bottom, 0px)
     ) !important;
+  transform: none !important;
 }
 
 #pause-btn {
@@ -267,7 +277,9 @@ body {
     ) !important;
 }
 
-/* bottom-right cluster, right to left: pause · sound · settings · quit */
+/* bottom-right cluster, right to left: pause · sound · settings · quit.
+   Tinted gold and given a larger glyph: at 12px the gear read as a smudge next
+   to the emoji speaker and was easy to miss entirely. */
 .settings-btn {
   right: 96px !important;
   bottom:
@@ -275,6 +287,15 @@ body {
       12px,
       env(safe-area-inset-bottom, 0px)
     ) !important;
+  font-size: 18px !important;
+  line-height: 1 !important;
+  color: #f5c36b !important;
+  border-color: #7a5a2a !important;
+}
+
+.settings-btn:hover {
+  color: #ffd98a !important;
+  border-color: #e8a13a !important;
 }
 
 .ars-quit {
@@ -357,7 +378,9 @@ body {
 
 @media (max-height: 540px) and (orientation: landscape) {
   .volley-wrap {
-    bottom: 8px !important;
+    right: 9px !important;
+    left: auto !important;
+    bottom: 50px !important;
   }
 
   #pause-btn {

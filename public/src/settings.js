@@ -4,7 +4,7 @@
    (screen shake) and toggles OLW.Audio — no edits to the teammate's files.
 
    Controls: mouse aims; BOTH left-click and Space fire (Space added per request).
-   Weapons 1-6, items Z/X/C/V, Q volley. There is no pause. */
+   Weapons 1-6 (or mouse wheel), items Z/X/C/V, Q volley, P/Esc pause (solo only). */
 window.OLW = window.OLW || {};
 
 OLW.Settings = (function () {
@@ -175,13 +175,13 @@ OLW.Settings = (function () {
 </div>
           <div class="set-row set-col"><div class="set-info"><b>Aim reticle</b><small>Saved on this device</small></div><div class="set-chips">${retOpts}</div></div>
           <div class="set-row set-col"><div class="set-info"><b>Control mode</b><small>Mouse/keys always work as a fallback. Hand-cam: move your hand to aim, make a fist to fire.</small></div><div class="set-chips">${cmOpts}</div></div>
-          <div class="set-row set-col"><div class="set-info"><b>Player 2 backup</b><small>If the phone controller loses connection mid-match. In a shared watch (co-op) auto-defend never engages — Player 2's post simply stands empty until they return.</small></div><div class="set-chips">${bkOpts}</div></div>
+          <div class="set-row set-col"><div class="set-info"><b>Player 2 backup</b><small>If the Remote Control drops mid-match. Auto-defend never takes over — an absent player's post simply stands empty. Keyboard lets YOU work the second post in co-op.</small></div><div class="set-chips">${bkOpts}</div></div>
           <div class="set-controls">
             <b>Controls</b>
             <ul>
               <li><span>Mouse</span> aim</li>
               <li><span>Left-click / Space</span> fire</li>
-              <li><span>1 – 6</span> switch weapons</li>
+              <li><span>1 – 6 / wheel</span> switch weapons</li>
               <li><span>Z X C V</span> use field-kit items</li>
               <li><span>Q</span> signal volley &nbsp; · &nbsp; <span>P / Esc</span> pause (solo only)</li>
               <li><span>Two players</span> no pause — the watch runs until it is won or lost</li>

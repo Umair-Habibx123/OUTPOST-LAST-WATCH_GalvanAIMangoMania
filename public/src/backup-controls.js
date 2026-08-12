@@ -28,23 +28,31 @@ OLW.BackupControls = (function () {
   let p2 = { x: null, y: null };
 
   function mode() { return (OLW.Settings && OLW.Settings.get && OLW.Settings.get('backup')) || 'auto'; }
-  function coopActive(g) { return g && g.state === 'playing' && MP && MP.mode && MP.mode !== 'solo'; }
 
-  /* NO AI STAND-IN IN CO-OP.
-     When Player 2 leaves a shared watch their post simply goes empty — an AI
-     that keeps aiming and firing for them turns a two-player run into a
-     one-and-a-half-player run and quietly plays the game for you. The keyboard
-     option is different: that is the HOST choosing to work the second post
-     themselves, so it still engages. */
-  function aiAllowed() { return !MP || MP.mode !== 'coop'; }
+  /* Player 2 only EXISTS in co-op. In solo-phone the remote drives the one and
+     only warden, and in versus the phone is the attacker — so there is no
+     second post to cover. Driving one anyway is what produced a ghost warden:
+     the AI called setPlayer2Aim/strikePlayer2, which lit up the P2 reticle and
+     fired bolts from a warden the player could not see and did not have. */
+  function hasSecondPost() { return MP && MP.mode === 'coop'; }
+  function coopActive(g) { return g && g.state === 'playing' && hasSecondPost(); }
 
+  /* NO AI STAND-IN, EVER.
+     An AI that aims and fires for a missing player quietly plays the game on
+     their behalf. If the controller drops, the post simply goes empty. The
+     keyboard option survives because that is the human at the host machine
+     choosing to work the second post themselves. */
   function shouldBackup(g) {
     if (!coopActive(g) || mode() === 'off') return false;
-    if (!controllerOnline || manual) return mode() === 'keyboard' || aiAllowed();
+    if (!controllerOnline || manual) return mode() === 'keyboard';
     return false;
   }
 
   /* ---- drive Player 2 locally ---- */
+  // Kept for reference only — nothing calls this any more. An AI that aims and
+  // fires for an absent player quietly plays the game for them, so a dropped
+  // controller now simply leaves the post empty.
+  // eslint-disable-next-line no-unused-vars
   function driveAI(g) {
     const U = OLW.U, C = OLW.CONFIG, CX = C.WIDTH / 2, CY = C.HEIGHT / 2;
     let best = null, bd = Infinity;
@@ -79,14 +87,14 @@ OLW.BackupControls = (function () {
     if (!active && engaged) { engaged = false; hideNote(); }
 
     if (!active) {
-      // co-op with nobody on the second post: mark it empty, drive nothing
-      if (coopActive(g) && !controllerOnline && !aiAllowed()) showEmptyNote();
+      // co-op with nobody on the second post: say so, but drive nothing
+      if (coopActive(g) && !controllerOnline) showEmptyNote();
       else if (!engaged) hideNote();
       return;
     }
 
-    if (mode() === 'keyboard') driveKeyboard(g, dt);
-    else driveAI(g);
+    // keyboard is the only backup that ever moves Player 2
+    driveKeyboard(g, dt);
   }
 
   /* ---- wrap the game loop ---- */

@@ -743,15 +743,23 @@ button {
     gap: 2px
 }
 
+/* Wall integrity is the one number that decides the run, so it sits bottom-LEFT
+   at a size you can read from across a room without turning your eyes away from
+   the wall. The volley moved to the right rail to make room. */
 .hud-bottom {
     position: absolute;
-    left: 50%;
+    left: clamp(10px, 1.8vmin, 16px);
     bottom: clamp(8px, 1.6vmin, 14px);
-    transform: translateX(-50%);
+    z-index: 8;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 3px
+    align-items: flex-start;
+    gap: 4px;
+    padding: 8px 12px 9px;
+    background: rgba(10, 13, 18, .72);
+    border: 1px solid #4a4436;
+    border-radius: 9px;
+    backdrop-filter: blur(3px)
 }
 
 .hud-label {
@@ -762,11 +770,24 @@ button {
     color: var(--muted)
 }
 
+.hud-bottom .hud-label {
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--gold)
+}
+
 .bar {
     width: clamp(130px, 28vmin, 235px);
     height: 10px;
     background: #080a0d;
     border: 1px solid rgba(255, 255, 255, .12)
+}
+
+.hud-bottom .bar {
+    width: clamp(190px, 30vmin, 320px);
+    height: 20px;
+    border-radius: 4px;
+    box-shadow: inset 0 2px 7px rgba(0, 0, 0, .65)
 }
 
 .bar-fill {
@@ -775,10 +796,23 @@ button {
     transition: width .18s, background .2s
 }
 
+.hud-bottom .bar-fill {
+    border-radius: 3px;
+    box-shadow: 0 0 14px rgba(232, 161, 58, .35)
+}
+
 .integrity-text {
     font-size: 10px;
     font-weight: 900;
     color: var(--sand)
+}
+
+.hud-bottom .integrity-text {
+    position: absolute;
+    right: 14px;
+    bottom: 11px;
+    font-size: 15px;
+    text-shadow: 0 2px 5px rgba(0, 0, 0, .9)
 }
 
 .wave-tag {
@@ -858,10 +892,13 @@ button {
     font-size: 8px
 }
 
+/* Volley now lives on the RIGHT, directly under the arsenal rail, so every
+   thing you spend sits on one side and the wall gauge owns the other. */
 .volley-wrap {
     position: absolute;
-    left: 14px;
-    bottom: 14px;
+    right: clamp(6px, 1.4vmin, 14px);
+    left: auto;
+    bottom: 58px;
     z-index: 8
 }
 
@@ -1010,8 +1047,19 @@ button {
         display: none
     }
 
+    /* mute is hidden at this width, so settings takes its slot instead of
+       leaving a gap that makes the gear look like it failed to render */
+    .settings-btn {
+        right: 54px !important
+    }
+
     .bar {
         width: 115px
+    }
+
+    .hud-bottom .bar {
+        width: clamp(150px, 42vw, 210px);
+        height: 17px
     }
 
     .panel {
@@ -2233,10 +2281,13 @@ and
   .hero-tip{display:none}
 }
 @media (max-height:540px) and (orientation:landscape){
-  .volley-wrap{bottom:9px}
+  .volley-wrap{bottom:50px;right:10px;left:auto}
   #pause-btn{right:10px;bottom:9px}
   .mute-btn{right:50px;bottom:9px}
   .settings-btn{right:90px;bottom:9px}
+  .hud-bottom{padding:6px 10px 7px}
+  .hud-bottom .bar{width:clamp(150px,26vmin,240px);height:16px}
+  .hud-bottom .integrity-text{font-size:13px;bottom:9px;right:12px}
 }
 
 /* Main-screen game emblem */
