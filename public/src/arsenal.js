@@ -72,7 +72,7 @@ OLW.Arsenal = (function () {
 
   // EVENT-DAY BUILD: cheaper field gear, most usable from level 1 (dragon ~Lv 4).
   const CONSUMABLES = [
-    { id: 'supply', key: 'z', name: 'Supply Line', tag: 'Repair', cost: 30, base: 1, perLevel: 0.5, desc: 'Restores +16 wall integrity instantly.' },
+    { id: 'supply', key: 'z', name: 'Supply Line', tag: 'Repair', cost: 30, base: 1, perLevel: 0.5, desc: 'Restores +8 wall integrity instantly.' },
     { id: 'weaponSupply', icon: 'supply', key: 'b', name: 'Weapon Supply', tag: 'Ammo', cost: 40, base: 1, perLevel: 0.4, desc: 'Reloads a half clip into every purchased weapon.' },
     { id: 'rally', key: 'x', name: 'Backup Team', tag: 'Allies', cost: 55, base: 1, perLevel: 0.34, desc: 'Deploy two allied guards. Their life drains under combat pressure until the team is lost.' },
     { id: 'warhound', key: 'c', name: 'War Beast', tag: 'Beast', cost: 75, base: 1, perLevel: 0.25, desc: 'Unleash an armoured war beast. It fights until its life is exhausted.' },
@@ -106,7 +106,7 @@ OLW.Arsenal = (function () {
   // level LIVE during the run (kills → level → more weapons/gear unlock).
   // Earnings are modest: a from-zero player has to work a bit for each purchase,
   // so buying is an earned advantage rather than a handout.
-  const COIN = { kill: 11, perfect: 65, mango: 45 };
+  const COIN = { kill: 8, perfect: 45, mango: 30 };
   const XP = { kill: 20, perfect: 50 };
 
   // Field-kit allies use LIFE instead of fixed timers. Their life drains much
@@ -501,7 +501,7 @@ if (
 
     if (id === 'supply') {
       const before = g.integrity;
-      g.integrity = U.clamp(g.integrity + Math.round(16 * fieldKitMult()), 0, C.INTEGRITY_MAX);
+      g.integrity = U.clamp(g.integrity + Math.round(8 * fieldKitMult()), 0, C.INTEGRITY_MAX);
       const healed = Math.round(g.integrity - before);
 
       // Supplies also replenish one random owned weapon that is not full.
