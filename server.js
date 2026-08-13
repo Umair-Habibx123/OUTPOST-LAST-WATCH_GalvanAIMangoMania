@@ -633,14 +633,29 @@ app.get('/controller.html', (request, response) => {
 app.use(
   express.static(publicDirectory, {
     extensions: ['html'],
-    maxAge:
-      process.env.NODE_ENV === 'production'
-        ? '1h'
-        : 0
+    setHeaders(response, filePath) {
+      // EVENT-DAY FIX: HTML/CSS/JS change on every deploy. Previously they were
+      // cached for 1h in production, so returning devices ran a STALE (often
+      // half-old/half-new, therefore broken) build until the cache expired —
+      // "works in dev, nothing works in prod after an update". Serve code with
+      // 'no-cache' so the browser always revalidates (ETag ⇒ cheap 304 when
+      // unchanged, fresh file when changed). Large immutable media (art/audio/
+      // fonts) may still cache for a day in production to spare the kiosk.
+      if (/\.(?:html|js|mjs|css|json|map)$/i.test(filePath)) {
+        response.setHeader('Cache-Control', 'no-cache');
+      } else {
+        response.setHeader(
+          'Cache-Control',
+          process.env.NODE_ENV === 'production' ? 'public, max-age=86400' : 'no-cache'
+        );
+      }
+    }
   })
 );
 
 app.get('/{*splat}', (request, response) => {
+  // The SPA fallback returns index.html — never let it be cached stale either.
+  response.setHeader('Cache-Control', 'no-cache');
   response.sendFile(
     path.join(publicDirectory, 'index.html')
   );
