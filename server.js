@@ -1,4 +1,4 @@
-// server.js
+// root/server.js
 
 import 'dotenv/config';
 
