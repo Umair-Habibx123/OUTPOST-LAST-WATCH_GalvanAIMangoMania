@@ -1906,7 +1906,10 @@ function renderShopPreserveScroll() {
       const weapon = WEAPONS.find((w) => w.key === event.key);
       if (weapon) {
         event.preventDefault();
-        A.equip(weapon.id);
+        // EVENT-DAY: number keys mirror a weapon-rail tap — own it → wield it;
+        // owned but empty → buy a clip & wield; not owned but affordable → buy &
+        // wield; level-locked/unaffordable → refused. (Sidearm always just wields.)
+        weaponClickAction(weapon);
         return;
       }
 
