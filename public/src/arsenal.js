@@ -72,8 +72,8 @@ OLW.Arsenal = (function () {
 
   // EVENT-DAY BUILD: cheaper field gear, most usable from level 1 (dragon ~Lv 4).
   const CONSUMABLES = [
-    { id: 'supply', key: 'z', name: 'Supply Line', tag: 'Repair', cost: 30, base: 1, perLevel: 0.5, desc: 'Restores +28 wall integrity instantly.' },
-    { id: 'weaponSupply', icon: 'supply', key: 'b', name: 'Weapon Supply', tag: 'Ammo', cost: 40, base: 1, perLevel: 0.4, desc: 'Reloads a full clip into every purchased weapon.' },
+    { id: 'supply', key: 'z', name: 'Supply Line', tag: 'Repair', cost: 30, base: 1, perLevel: 0.5, desc: 'Restores +16 wall integrity instantly.' },
+    { id: 'weaponSupply', icon: 'supply', key: 'b', name: 'Weapon Supply', tag: 'Ammo', cost: 40, base: 1, perLevel: 0.4, desc: 'Reloads a half clip into every purchased weapon.' },
     { id: 'rally', key: 'x', name: 'Backup Team', tag: 'Allies', cost: 55, base: 1, perLevel: 0.34, desc: 'Deploy two allied guards. Their life drains under combat pressure until the team is lost.' },
     { id: 'warhound', key: 'c', name: 'War Beast', tag: 'Beast', cost: 75, base: 1, perLevel: 0.25, desc: 'Unleash an armoured war beast. It fights until its life is exhausted.' },
     { id: 'dragon', key: 'v', name: 'Dragon Strike', tag: 'Ultimate', cost: 130, base: 0, perLevel: 0.4, desc: 'Call an ember dragon that makes repeated attack runs while its life holds.' }
@@ -501,7 +501,7 @@ if (
 
     if (id === 'supply') {
       const before = g.integrity;
-      g.integrity = U.clamp(g.integrity + Math.round(28 * fieldKitMult()), 0, C.INTEGRITY_MAX);
+      g.integrity = U.clamp(g.integrity + Math.round(16 * fieldKitMult()), 0, C.INTEGRITY_MAX);
       const healed = Math.round(g.integrity - before);
 
       // Supplies also replenish one random owned weapon that is not full.
@@ -529,14 +529,17 @@ if (
       OLW.Audio?.mango?.();
 
     } else if (id === 'weaponSupply') {
-      // Reload a full clip into every purchased (non-starter) weapon, up to cap.
+      // EVENT-DAY BUILD: reload HALF a clip into every purchased (non-starter)
+      // weapon, up to cap — toned down from a full clip so it's a top-up, not a
+      // free full reload.
       const guns = WEAPONS.filter((w) => !w.starter && A.owned(w));
       let total = 0, reloaded = 0;
       for (const w of guns) {
         const cap = ammoCap(w);
         const have = A.runAmmo(w.id);
         if (have >= cap) continue;
-        const gain = Math.min(cap - have, w.clip || 1);
+        const halfClip = Math.max(1, Math.ceil((w.clip || 1) * 0.5));
+        const gain = Math.min(cap - have, halfClip);
         A._run[w.id] = have + gain;
         total += gain;
         reloaded += 1;
