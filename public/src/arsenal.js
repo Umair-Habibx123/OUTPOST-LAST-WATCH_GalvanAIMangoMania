@@ -104,9 +104,9 @@ OLW.Arsenal = (function () {
 
   // EVENT-DAY BUILD: coins earned per event, and XP that raises the player's
   // level LIVE during the run (kills → level → more weapons/gear unlock).
-  // Earnings are a little generous (esp. per guard kill) so a from-zero player
-  // earns their first weapon in the opening wave — but not instantly.
-  const COIN = { kill: 14, perfect: 80, mango: 55 };
+  // Earnings are modest: a from-zero player has to work a bit for each purchase,
+  // so buying is an earned advantage rather than a handout.
+  const COIN = { kill: 11, perfect: 65, mango: 45 };
   const XP = { kill: 20, perfect: 50 };
 
   // Field-kit allies use LIFE instead of fixed timers. Their life drains much
