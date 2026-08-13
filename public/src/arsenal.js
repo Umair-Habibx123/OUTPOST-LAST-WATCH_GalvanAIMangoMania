@@ -1289,6 +1289,9 @@ if (
       p.loadout = 'sidearm';
       A.runCoins = startCoins();
       A._lastLevel = level();   // baseline (1) for live level-up callouts
+      A._creditKills = 0;       // persistent coin/XP credit tallies (see P.update)
+      A._creditPerfect = 0;
+      A._creditMango = 0;
       A._active = { rally: [], warhound: [], dragon: [] };
       A._lastIntegrity = this.integrity;
       A._runStarted = performance.now();
@@ -1330,18 +1333,22 @@ if (
 
     const origUpdate = P.update;
     P.update = function (dt) {
-      const killsBefore = this.kills;
-      const perfectBefore = this.perfectWaves;
-      const mangoBefore = this.mangoGrabbed;
-
       origUpdate.call(this, dt);
 
       if (this.state === 'playing') {
-        const killDelta = this.kills - killsBefore;
-        const perfectDelta = this.perfectWaves - perfectBefore;
-        if (killDelta > 0) { A.addRunCoins(killDelta * COIN.kill); A.addRunXp(killDelta * XP.kill); }
-        if (perfectDelta > 0) { A.addRunCoins(perfectDelta * COIN.perfect); A.addRunXp(perfectDelta * XP.perfect); }
-        if (this.mangoGrabbed > mangoBefore) A.addRunCoins((this.mangoGrabbed - mangoBefore) * COIN.mango);
+        // EVENT-DAY FIX: credit against a PERSISTENT tally, not a per-frame
+        // snapshot. Kills and mango-cart grabs happen inside click handlers
+        // BETWEEN frames, so a per-frame "killsBefore" already contained them and
+        // credited 0 — that's why only perfect-wave coins (incremented inside
+        // update) ever showed up live. Comparing this.kills / mangoGrabbed to the
+        // running credited totals pays out every kill/mango the instant it lands.
+        if (A._creditKills == null) { A._creditKills = 0; A._creditPerfect = 0; A._creditMango = 0; }
+        const dK = this.kills - A._creditKills;
+        const dP = this.perfectWaves - A._creditPerfect;
+        const dM = this.mangoGrabbed - A._creditMango;
+        if (dK > 0) { A.addRunCoins(dK * COIN.kill); A.addRunXp(dK * XP.kill); A._creditKills = this.kills; }
+        if (dP > 0) { A.addRunCoins(dP * COIN.perfect); A.addRunXp(dP * XP.perfect); A._creditPerfect = this.perfectWaves; }
+        if (dM > 0) { A.addRunCoins(dM * COIN.mango); A._creditMango = this.mangoGrabbed; }
         // live level-ups: flash the HUD + a short warden callout, and the rails
         // repaint (below) so freshly unlocked weapons switch to a buy price.
         const nowLevel = level();
