@@ -42,7 +42,7 @@ export function weaponUpgradeCost(lvl) {
 }
 
 const MAX_LEVEL = 20;
-const COIN = { kill: 8, perfect: 45, mango: 30 };
+const COIN = { kill: 3, perfect: 15, mango: 12 };
 
 // per-run anti-cheat ceilings (a great run earns a few thousand)
 const CAPS = {
